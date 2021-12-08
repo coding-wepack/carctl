@@ -1,5 +1,6 @@
 package maven
 
-func Maven() error {
+func Migrate() error {
 
+	return nil
 }

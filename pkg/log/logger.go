@@ -7,7 +7,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	"e.coding.net/codingcorp/camigrater/pkg/util/fileutil"
+	"e.coding.net/codingcorp/carctl/pkg/util/fileutil"
 )
 
 var (
@@ -167,10 +167,10 @@ func getConfig(atomicLevel zap.AtomicLevel, encoding string, outputPaths, errorO
 		LineEnding:    zapcore.DefaultLineEnding,
 		EncodeLevel:   zapcore.LowercaseLevelEncoder,
 		EncodeTime: func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
-			encodeTimeLayout(t, "2006-01-02 15:04:05.000000000", enc)
+			encodeTimeLayout(t, "2006-01-02 15:04:05.000", enc)
 		},
 		EncodeDuration: zapcore.StringDurationEncoder,
-		EncodeCaller:   zapcore.ShortCallerEncoder,
+		// EncodeCaller:   zapcore.ShortCallerEncoder,
 	}
 
 	if encoding == "console" {
