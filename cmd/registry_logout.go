@@ -3,10 +3,11 @@ package main
 import (
 	"io"
 
+	"github.com/spf13/cobra"
+
 	"e.coding.net/codingcorp/carctl/cmd/require"
 	"e.coding.net/codingcorp/carctl/pkg/action"
 	"e.coding.net/codingcorp/carctl/pkg/action/login"
-	"github.com/spf13/cobra"
 )
 
 const registryLogoutDesc = `

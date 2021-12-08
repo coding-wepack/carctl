@@ -11,7 +11,7 @@ import (
 	"e.coding.net/codingcorp/carctl/pkg/settings"
 )
 
-const globalUsage = `The CODING Artifact Repository Manager
+const globalUsage = `The CODING Artifact Registry Manager
 
 Common actions for carctl:
 
@@ -27,7 +27,7 @@ Common actions for carctl:
 func newRootCmd(cfg *action.Configuration, out io.Writer, args []string) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:          "carctl",
-		Short:        "The CODING Artifact Repository Manager.",
+		Short:        "The CODING Artifact Registry Manager.",
 		Long:         globalUsage,
 		SilenceUsage: true,
 	}
@@ -35,15 +35,13 @@ func newRootCmd(cfg *action.Configuration, out io.Writer, args []string) (*cobra
 	cmd.CompletionOptions.DisableDefaultCmd = true
 
 	cmd.PersistentFlags().BoolVarP(&settings.Verbose, "verbose", "v", false, "Make the operation more talkative")
-	// cmd.PersistentFlags().StringVarP(&settings.Username, "username", "u", "", "The CODING Artifact Repository username")
-	// cmd.PersistentFlags().StringVarP(&settings.Password, "password", "p", "", "The CODING Artifact Repository password")
 
 	// registry client
 	registryClient, err := registry.NewClient(
 		registry.ClientOptVerbose(settings.Verbose),
 		registry.ClientOptWriter(out),
 		// TODO: config file configurable
-		registry.ClientOptConfigFile(config.DefaultConfigFile),
+		registry.ClientOptConfigFile(config.DefaultConfigFilePath()),
 	)
 	if err != nil {
 		return nil, err

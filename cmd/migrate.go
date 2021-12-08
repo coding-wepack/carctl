@@ -8,7 +8,7 @@ import (
 )
 
 const migrateHelp = `
-This command migrates artifacts from local or remote to a CODING Artifact Repository.
+This command migrates artifacts from local or remote to a CODING Artifact Registry.
 
 The migrate argument must be an artifact type, available now:
 
@@ -42,15 +42,13 @@ func newMigrateCmd() *cobra.Command {
 	}
 
 	// required flags
-	// migrateCmd.Flags().StringVarP(&flags.Type, "type", "t", "maven", "e.g., -t=maven. Artifact type. Support: [maven]. TODO: [generic、npm ...]")
-	cmd.Flags().StringVar(&settings.Src, "src", "", `--src="file://~/.m2/repository", or --src="https://demo-maven.pkg.coding.net/repository/test-project/src-repo/"`)
-	cmd.Flags().StringVar(&settings.SrcUsername, "src-username", "", "--src-username=test")
-	cmd.Flags().StringVar(&settings.SrcPassword, "src-password", "", "--src-password=test123")
-	cmd.Flags().StringVar(&settings.Dst, "dst", "", `--dst="https://demo-maven.pkg.coding.net/repository/test-project/dst-repo/"`)
+	cmd.Flags().StringVar(&settings.Src, "src", "", `e.g., --src="file://~/.m2/repository", or --src="https://demo-maven.pkg.coding.net/repository/test-project/src-repo/"`)
+	cmd.Flags().StringVar(&settings.SrcUsername, "src-username", "", "e.g., --src-username=test")
+	cmd.Flags().StringVar(&settings.SrcPassword, "src-password", "", "e.g., --src-password=test123")
+	cmd.Flags().StringVar(&settings.Dst, "dst", "", `e.g., --dst="https://demo-maven.pkg.coding.net/repository/test-project/dst-repo/"`)
 
 	// Mark flags as required
-	// _ = migrateCmd.MarkFlagRequired("type")
-	_ = cmd.MarkFlagRequired("src")
+	// _ = cmd.MarkFlagRequired("src")
 	_ = cmd.MarkFlagRequired("dst")
 
 	// optional flags

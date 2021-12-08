@@ -19,7 +19,7 @@ import (
 )
 
 const registryLoginDesc = `
-Authenticate to a remote CODING Artifact Repository.
+Authenticate to a remote CODING Artifact Registry.
 
 Examples:
 

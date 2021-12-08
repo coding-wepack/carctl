@@ -1,6 +1,6 @@
 # carctl
 
-`carctl` is a tool to help you control your CODING Artifact Repository.
+`carctl` is a tool to help you control your CODING Artifact Registry.
 
 The full name of `carctl` is *CODING Artifacts Repository Control*.
 

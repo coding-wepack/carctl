@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
-
 	"e.coding.net/codingcorp/carctl/pkg/action"
 	"e.coding.net/codingcorp/carctl/pkg/log"
 	"e.coding.net/codingcorp/carctl/pkg/settings"
@@ -21,7 +19,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	cobra.CheckErr(cmd.Execute())
+	if err := cmd.Execute(); err != nil {
+		// debug("%+v", err)
+		os.Exit(1)
+	}
 }
 
 func info(format string, v ...interface{}) {

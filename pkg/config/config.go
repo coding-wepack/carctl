@@ -19,10 +19,9 @@ var (
 )
 
 const (
-	DefaultConfigFile = "~/.carctl/config.json"
-	ConfigFileName    = "config.json"
-	configFileDir     = ".carctl"
-	contextsDir       = "contexts"
+	DefaultConfigFileName = "config.json"
+	configFileDir         = ".carctl"
+	contextsDir           = "contexts"
 )
 
 // resetHomeDir is used in testing to reset the "homeDir" package variable to
@@ -31,7 +30,7 @@ func resetHomeDir() {
 	homeDir = ""
 }
 
-func getHomeDir() string {
+func GetHomeDir() string {
 	if homeDir == "" {
 		homeDir = homedir.Get()
 	}
@@ -51,12 +50,12 @@ func setConfigDir() {
 	}
 	configDir = os.Getenv("CARCTL_CONFIG")
 	if configDir == "" {
-		configDir = filepath.Join(getHomeDir(), configFileDir)
+		configDir = filepath.Join(GetHomeDir(), configFileDir)
 	}
 }
 
 func DefaultConfigFilePath() string {
-	return filepath.Join(Dir(), ConfigFileName)
+	return filepath.Join(Dir(), DefaultConfigFileName)
 }
 
 // Dir returns the directory the configuration file is stored in
@@ -116,7 +115,7 @@ func Load(configDir string) (*Config, error) {
 		configDir = Dir()
 	}
 
-	filename := filepath.Join(configDir, ConfigFileName)
+	filename := filepath.Join(configDir, DefaultConfigFileName)
 	configFile := New(filename)
 
 	// Try happy path first - latest config file

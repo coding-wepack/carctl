@@ -15,7 +15,7 @@ import (
 
 type Client struct {
 	// configFile is path to registry config file.
-	// e.g., ~/.carctl/config.json
+	// e.g., $HOME/.carctl/config.json
 	configFile string
 
 	verbose bool
