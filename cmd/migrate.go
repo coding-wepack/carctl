@@ -4,7 +4,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"e.coding.net/codingcorp/carctl/cmd/require"
-	"e.coding.net/codingcorp/carctl/pkg/settings"
 )
 
 const migrateHelp = `
@@ -40,20 +39,6 @@ func newMigrateCmd() *cobra.Command {
 		Long:  migrateHelp,
 		Args:  require.MinimumNArgs(1),
 	}
-
-	// required flags
-	cmd.Flags().StringVar(&settings.Src, "src", "", `e.g., --src="file://~/.m2/repository", or --src="https://demo-maven.pkg.coding.net/repository/test-project/src-repo/"`)
-	cmd.Flags().StringVar(&settings.SrcUsername, "src-username", "", "e.g., --src-username=test")
-	cmd.Flags().StringVar(&settings.SrcPassword, "src-password", "", "e.g., --src-password=test123")
-	cmd.Flags().StringVar(&settings.Dst, "dst", "", `e.g., --dst="https://demo-maven.pkg.coding.net/repository/test-project/dst-repo/"`)
-
-	// Mark flags as required
-	// _ = cmd.MarkFlagRequired("src")
-	_ = cmd.MarkFlagRequired("dst")
-
-	// optional flags
-	cmd.Flags().DurationVar(&settings.Sleep, "sleep", 0, "e.g., --sleep=3s. The default is 0, which means there will be no time to sleep")
-	cmd.Flags().IntVarP(&settings.Concurrency, "concurrency", "c", 1, "e.g., -c=2. Concurrency controls for how many artifacts can be pushed concurrently")
 
 	// add subcommands
 	cmd.AddCommand(
