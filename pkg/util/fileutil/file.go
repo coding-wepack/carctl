@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+func IsFileInvisible(filename string) bool {
+	return strings.HasPrefix(filename, ".")
+}
+
 // IsFileExists checks if file specified exists
 func IsFileExists(name string) (bool, error) {
 	_, err := os.Stat(name)

@@ -1,8 +1,6 @@
 package maven
 
 import (
-	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -53,28 +51,22 @@ func Migrate() error {
 	return nil
 }
 
-func getVersions(repositoryPath string) (versions []Version, err error) {
-	if err = filepath.WalkDir(repositoryPath, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			log.Warn("got an error while walking dir", logfields.String("path", path),
-				logfields.String("error", err.Error()))
-			return nil
-		}
-		if d.IsDir() {
-			return nil
-		}
-		if strings.HasPrefix(d.Name(), ".") || d.Name() == "_remote.repositories" {
-			return nil
-		}
+func getArtInfo(path, repositoryPath string) (groupName, artifact, version, filename string, err error) {
+	// repositoryPath: /Users/chenxinyu/.m2/repository
+	// path: /Users/chenxinyu/.m2/repository/org/kohsuke/stapler/json-lib/2.4-jenkins-2/json-lib-2.4-jenkins-2-sources.jar
+	// subPath: org/kohsuke/stapler/json-lib/2.4-jenkins-2/json-lib-2.4-jenkins-2-sources.jar
+	// filename: json-lib-2.4-jenkins-2-sources.jar
+	subPath := strings.Trim(strings.TrimPrefix(path, repositoryPath), "/")
+	filename = filepath.Base(path)
 
-		return nil
-	}); err != nil {
-		if err == io.EOF {
-			return nil, nil
-		}
-		return nil, err
+	subPathChunks := strings.Split(subPath, "/")
+	size := len(subPathChunks)
+	if size < 4 {
+		return "", "", "", "", errors.New("invalid path")
 	}
-
+	version = subPathChunks[size-2]
+	artifact = subPathChunks[size-3]
+	groupName = strings.Join(subPathChunks[:size-3], ".")
 	return
 }
 
