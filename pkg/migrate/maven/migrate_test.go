@@ -80,6 +80,13 @@ func TestWalkDir2(t *testing.T) {
 
 	fmt.Printf("count: %v\n", count)
 	fmt.Printf("%+v\n", repository)
+	fmt.Println("================================================================================================")
+
+	for _, v := range repository.Flatten().Files {
+		fmt.Printf("Group: [%s], Artifact: [%s], Version: [%s], File: [%s]\n",
+			v.Group, v.Artifact, v.Version, v.Filename)
+	}
+	fmt.Println("================================================================================================")
 
 	repository.Render(os.Stdout)
 }
@@ -98,5 +105,6 @@ func TestAddVersion(t *testing.T) {
 	repository := Repository{Path: "/home/juan/.m2/test-repository"}
 	repository.AddVersionFile(group1, art1, version1, file1, filePath1)
 	fmt.Printf("%#v\n", repository)
-	repository.Render(os.Stdout)
+	// repository.Render(os.Stdout)
+	fmt.Printf("%#v\n", *repository.Flatten())
 }

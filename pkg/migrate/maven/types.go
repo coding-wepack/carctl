@@ -1,7 +1,6 @@
 package maven
 
 import (
-	"fmt"
 	"io"
 	"regexp"
 	"strconv"
@@ -17,67 +16,83 @@ var (
 	ArtifactNameRegex = regexp.MustCompile(ArtifactNameRegexStr)
 )
 
-type Repository struct {
-	// Path is file path to repository
-	Path string `json:"path"`
+type (
+	Repository struct {
+		// Path is file path to repository
+		Path string `json:"path"`
 
-	Groups []*Group `json:"groups,omitempty"`
-}
+		Groups []*Group `json:"groups,omitempty"`
+	}
 
-type Group struct {
-	Name string `json:"name,omitempty"`
+	Group struct {
+		Name string `json:"name,omitempty"`
 
-	Artifacts []*Artifact `json:"artifacts,omitempty"`
-}
+		Artifacts []*Artifact `json:"artifacts,omitempty"`
+	}
 
-type Artifact struct {
-	Name string `json:"name,omitempty"`
+	Artifact struct {
+		Name string `json:"name,omitempty"`
 
-	Versions []*Version `json:"versions,omitempty"`
-}
+		Versions []*Version `json:"versions,omitempty"`
+	}
 
-type Version struct {
-	Name string `json:"name,omitempty"`
+	Version struct {
+		Name string `json:"name,omitempty"`
 
-	Files []*VersionFile `json:"files,omitempty"`
-}
+		Files []*VersionFile `json:"files,omitempty"`
+	}
 
-type VersionFile struct {
-	// Name: e.g., spring-context-4.3.14.RELEASE.jar | spring-context-4.3.14.RELEASE.pom
-	Name string `json:"name,omitempty"`
+	VersionFile struct {
+		// Name: e.g., spring-context-4.3.14.RELEASE.jar | spring-context-4.3.14.RELEASE.pom
+		Name string `json:"name,omitempty"`
 
-	// Path: /home/user/.m2/repository/org/springframework/spring-context/4.3.14.RELEASE/spring-context-4.3.14.RELEASE.jar
-	Path string `json:"path,omitempty"`
-}
+		// Path: /home/user/.m2/repository/org/springframework/spring-context/4.3.14.RELEASE/spring-context-4.3.14.RELEASE.jar
+		Path string `json:"path,omitempty"`
+	}
+)
+
+type (
+	FlattenRepository struct {
+		Path string `json:"path"`
+
+		Files []FlattenVersionFile `json:"files,omitempty"`
+	}
+
+	FlattenVersionFile struct {
+		Filename string `json:"filename"`
+		Version  string `json:"version"`
+		Artifact string `json:"artifact"`
+		Group    string `json:"group"`
+	}
+)
 
 func (r *Repository) Render(w io.Writer) {
-	fileCounts := r.VersionCount()
-	data := make([][]string, fileCounts)
+	flattenRepository := r.Flatten()
+	flattenRepository.Render(w)
+}
+
+func (r *Repository) Flatten() *FlattenRepository {
+	flattenRepository := &FlattenRepository{
+		Path:  r.Path,
+		Files: make([]FlattenVersionFile, 0),
+	}
+
 	for _, g := range r.Groups {
 		for _, a := range g.Artifacts {
 			for _, v := range a.Versions {
-				for i, f := range v.Files {
-					data[i] = []string{
-						g.Name, a.Name, v.Name, f.Name,
-					}
+				for _, f := range v.Files {
+					flattenRepository.Files = append(flattenRepository.Files, FlattenVersionFile{
+						Filename: f.Name,
+						Version:  v.Name,
+						Artifact: a.Name,
+						Group:    g.Name,
+					})
 				}
 			}
 		}
 	}
 
-	fmt.Printf("%#v\n", data)
-
-	table := tablewriter.NewWriter(w)
-	table.SetHeader([]string{"Group", "Artifact", "Version", "File"})
-	table.SetFooter([]string{"Total", strconv.Itoa(fileCounts), "", ""})
-	table.SetAutoMergeCells(true)
-	table.SetRowLine(true)
-	table.AppendBulk(data)
-	table.Render()
-}
-
-func (r *Repository) Flatten() {
-
+	return flattenRepository
 }
 
 func (r *Repository) VersionCount() int {
@@ -173,17 +188,20 @@ func (v *Version) AddFile(filename, filePath string) {
 	v.Files = append(v.Files, &VersionFile{Name: filename, Path: filePath})
 }
 
-type (
-	FlattenRepository struct {
-		Path string `json:"path"`
-
-		Files []FlattenVersionFile `json:"files,omitempty"`
+func (f *FlattenRepository) Render(w io.Writer) {
+	total := len(f.Files)
+	data := make([][]string, total)
+	for i, v := range f.Files {
+		data[i] = []string{
+			v.Group, v.Artifact, v.Version, v.Filename,
+		}
 	}
 
-	FlattenVersionFile struct {
-		Filename string `json:"filename"`
-		Version  string `json:"version"`
-		Artifact string `json:"artifact"`
-		Group    string `json:"group"`
-	}
-)
+	table := tablewriter.NewWriter(w)
+	table.SetHeader([]string{"Group", "Artifact", "Version", "File"})
+	table.SetFooter([]string{"Total", strconv.Itoa(total), "", ""})
+	table.SetAutoMergeCells(true)
+	table.SetRowLine(true)
+	table.AppendBulk(data)
+	table.Render()
+}
