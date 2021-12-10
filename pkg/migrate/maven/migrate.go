@@ -1,6 +1,7 @@
 package maven
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -49,6 +50,46 @@ func Migrate() error {
 		logfields.Strings("packages", packages))
 
 	return nil
+}
+
+func GetRepository(repositoryPath string, maxFiles int) (repository *Repository, err error) {
+	var fileCount int
+	repository = &Repository{Path: repositoryPath}
+	if err = filepath.WalkDir(repositoryPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			if fileutil.IsFileInvisible(d.Name()) {
+				return filepath.SkipDir
+			}
+			if !ArtifactNameRegex.MatchString(d.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if fileutil.IsFileInvisible(d.Name()) ||
+			d.Name() == "_remote.repositories" ||
+			strings.HasPrefix(d.Name(), "_") {
+			return nil
+		}
+		if maxFiles >= 0 && fileCount >= maxFiles { // FIXME
+			return nil
+		}
+
+		groupName, artifact, version, filename, err := getArtInfo(path, repositoryPath)
+		if err != nil {
+			return errors.Wrap(err, "failed to get artifact info")
+		}
+		repository.AddVersionFile(groupName, artifact, version, filename, path)
+		fileCount++
+
+		return nil
+	}); err != nil {
+		return nil, errors.Wrap(err, "failed to walk repository")
+	}
+
+	return
 }
 
 func getArtInfo(path, repositoryPath string) (groupName, artifact, version, filename string, err error) {

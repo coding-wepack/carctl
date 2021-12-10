@@ -40,4 +40,7 @@ var (
 
 	// Concurrency controls how many artifacts can be uploaded simultaneously.
 	Concurrency int
+
+	// MaxFiles are maximum files which would be uploaded
+	MaxFiles int
 )
