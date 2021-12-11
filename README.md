@@ -113,7 +113,7 @@ Removing login credentials for team-maven.pkg.coding.net
 
 #### Maven
 
-Migrate local `~/.m2/repository` to remote maven repository:
+Migrate your maven repository to a remote maven repository:
 
 ```shell
 $ carctl migrate maven --src=/home/juan/.m2/swagger-core-repository --dst=http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/swagger-repository/
