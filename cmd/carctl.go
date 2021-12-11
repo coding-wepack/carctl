@@ -33,7 +33,7 @@ func info(format string, v ...interface{}) {
 func debug(format string, v ...interface{}) {
 	if settings.Verbose {
 		format = fmt.Sprintf("%s", format)
-		log.Info(fmt.Sprintf(format, v...))
+		log.Debug(fmt.Sprintf(format, v...))
 	}
 }
 

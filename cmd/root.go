@@ -51,7 +51,8 @@ func newRootCmd(cfg *action.Configuration, out io.Writer, args []string) (*cobra
 	cmd.AddCommand(
 		newMigrateCmd(cfg, out),
 		newVersionCmd(),
-		newRegistryCmd(cfg, out),
+		newLoginCmd(cfg, out),
+		newLogoutCmd(cfg, out),
 	)
 
 	return cmd, nil

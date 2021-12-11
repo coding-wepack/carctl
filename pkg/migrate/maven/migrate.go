@@ -30,7 +30,7 @@ func Migrate(cfg *action.Configuration, out io.Writer) error {
 		settings.Src = defaultMavenRepositoryPath()
 	}
 
-	log.Info("stat source repository ...")
+	log.Info("Stat source repository ...")
 
 	repositoryFileInfo, err := os.Stat(settings.Src)
 	if err != nil {
@@ -44,7 +44,7 @@ func Migrate(cfg *action.Configuration, out io.Writer) error {
 		return errors.New("source repository is not a directory")
 	}
 
-	log.Info("check authorization of the registry")
+	log.Info("Check authorization of the registry")
 	configFile, err := cfg.RegistryClient.ConfigFile()
 	if err != nil {
 		return errors.Wrap(err, "failed to get config file")
@@ -59,7 +59,7 @@ func Migrate(cfg *action.Configuration, out io.Writer) error {
 	}
 
 	if settings.Verbose {
-		log.Debug("auth config", logfields.String("host", authConfig.ServerAddress),
+		log.Debug("Auth config", logfields.String("host", authConfig.ServerAddress),
 			logfields.String("username", authConfig.Username),
 			logfields.String("password", authConfig.Password))
 	}
@@ -72,14 +72,14 @@ func Migrate(cfg *action.Configuration, out io.Writer) error {
 }
 
 func migrateRepository(w io.Writer, username, password string) error {
-	log.Info("scanning repository ...")
+	log.Info("Scanning repository ...")
 
 	repository, err := GetRepository(settings.Src, settings.MaxFiles)
 	if err != nil {
 		return err
 	}
 	flattenRepository := repository.Flatten()
-	log.Info("successfully to scan the repository",
+	log.Info("Successfully to scan the repository",
 		logfields.Int("groups", flattenRepository.GetGroupCount()),
 		logfields.Int("artifacts", flattenRepository.GetArtifactCount()),
 		logfields.Int("versions", flattenRepository.GetVersionCount()),

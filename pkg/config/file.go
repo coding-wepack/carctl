@@ -19,9 +19,7 @@ import (
 func New(fn string) *Config {
 	return &Config{
 		Filename: fn,
-		Registry: &Registry{
-			AuthConfigs: map[string]AuthConfig{},
-		},
+		Auths:    map[string]AuthConfig{},
 	}
 }
 
@@ -32,7 +30,7 @@ func (c *Config) LoadFromReader(r io.Reader) error {
 	if err = jsonutil.NewDecoder(r).Decode(&c); err != nil && !errors.Is(err, io.EOF) {
 		return err
 	}
-	for addr, ac := range c.Registry.AuthConfigs {
+	for addr, ac := range c.Auths {
 		if ac.Auth != "" {
 			ac.Username, ac.Password, err = decodeAuth(ac.Auth)
 			if err != nil {
@@ -41,7 +39,7 @@ func (c *Config) LoadFromReader(r io.Reader) error {
 		}
 		ac.Auth = ""
 		ac.ServerAddress = addr
-		c.Registry.AuthConfigs[addr] = ac
+		c.Auths[addr] = ac
 	}
 	return nil
 }
@@ -54,7 +52,7 @@ func (c *Config) LegacyLoadFromReader(configData io.Reader) error {
 		return err
 	}
 
-	if err := jsonutil.Unmarshal(b, &c.Registry.AuthConfigs); err != nil {
+	if err := jsonutil.Unmarshal(b, &c.Auths); err != nil {
 		arr := strings.Split(string(b), "\n")
 		if len(arr) < 2 {
 			return errors.Errorf("The Auth config file is empty")
@@ -70,14 +68,14 @@ func (c *Config) LegacyLoadFromReader(configData io.Reader) error {
 		}
 		// c.Registry.AuthConfigs[defaultIndexServer] = authConfig
 	} else {
-		for k, authConfig := range c.Registry.AuthConfigs {
+		for k, authConfig := range c.Auths {
 			authConfig.Username, authConfig.Password, err = decodeAuth(authConfig.Auth)
 			if err != nil {
 				return err
 			}
 			authConfig.Auth = ""
 			authConfig.ServerAddress = k
-			c.Registry.AuthConfigs[k] = authConfig
+			c.Auths[k] = authConfig
 		}
 	}
 	return nil
@@ -96,17 +94,17 @@ func (c *Config) GetFilename() string {
 
 // GetAllAuthConfigs returns the mapping of repo to auth configuration
 func (c *Config) GetAllAuthConfigs() map[string]AuthConfig {
-	return c.Registry.AuthConfigs
+	return c.Auths
 }
 
 // GetAuthConfig for a repository from the credential store
 func (c *Config) GetAuthConfig(serverAddress string) (bool, AuthConfig, error) {
 	serverAddress = ConvertToHostname(serverAddress)
-	authConfig, ok := c.Registry.AuthConfigs[serverAddress]
+	authConfig, ok := c.Auths[serverAddress]
 	if !ok {
 		// Maybe they have a legacy config file, we will iterate the keys converting
 		// them to the new format and testing
-		for r, ac := range c.Registry.AuthConfigs {
+		for r, ac := range c.Auths {
 			if serverAddress == ConvertToHostname(r) {
 				return true, ac, nil
 			}
@@ -119,13 +117,13 @@ func (c *Config) GetAuthConfig(serverAddress string) (bool, AuthConfig, error) {
 
 func (c *Config) StoreAuth(authConfig AuthConfig) error {
 	authConfig.ServerAddress = ConvertToHostname(authConfig.ServerAddress)
-	c.Registry.AuthConfigs[authConfig.ServerAddress] = authConfig
+	c.Auths[authConfig.ServerAddress] = authConfig
 	return c.Save()
 }
 
 func (c *Config) RemoveAuthConfig(serverAddress string) error {
 	serverAddress = ConvertToHostname(serverAddress)
-	delete(c.Registry.AuthConfigs, serverAddress)
+	delete(c.Auths, serverAddress)
 	return c.Save()
 }
 
@@ -133,8 +131,8 @@ func (c *Config) RemoveAuthConfig(serverAddress string) error {
 // the given writer
 func (c *Config) SaveToWriter(w io.Writer) error {
 	// Encode sensitive data into a new/temp struct
-	tmpAuthConfigs := make(map[string]AuthConfig, len(c.Registry.AuthConfigs))
-	for k, authConfig := range c.Registry.AuthConfigs {
+	tmpAuthConfigs := make(map[string]AuthConfig, len(c.Auths))
+	for k, authConfig := range c.Auths {
 		authCopy := authConfig
 		// encode and save the authstring, while blanking out the original fields
 		authCopy.Auth = encodeAuth(&authCopy)
@@ -144,9 +142,9 @@ func (c *Config) SaveToWriter(w io.Writer) error {
 		tmpAuthConfigs[k] = authCopy
 	}
 
-	saveAuthConfigs := c.Registry.AuthConfigs
-	c.Registry.AuthConfigs = tmpAuthConfigs
-	defer func() { c.Registry.AuthConfigs = saveAuthConfigs }()
+	saveAuthConfigs := c.Auths
+	c.Auths = tmpAuthConfigs
+	defer func() { c.Auths = saveAuthConfigs }()
 
 	// data, err := jsonutil.MarshalIndent(c, "", "    ")
 	data, err := json.MarshalIndent(c, "", "    ")

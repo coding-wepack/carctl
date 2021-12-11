@@ -7,7 +7,7 @@ import (
 )
 
 func (c *Client) Logout(ctx context.Context, hostname string) error {
-	_, ok := c.config.Registry.AuthConfigs[hostname]
+	_, ok := c.config.Auths[hostname]
 	if !ok {
 		return auth.ErrNotLoggedIn
 	}

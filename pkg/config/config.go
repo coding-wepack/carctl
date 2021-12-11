@@ -87,9 +87,7 @@ func Path(p ...string) (string, error) {
 // a non-nested reader
 func LegacyLoadFromReader(configData io.Reader) (*Config, error) {
 	configFile := Config{
-		Registry: &Registry{
-			AuthConfigs: make(map[string]AuthConfig),
-		},
+		Auths: make(map[string]AuthConfig),
 	}
 	err := configFile.LegacyLoadFromReader(configData)
 	return &configFile, err
@@ -99,9 +97,7 @@ func LegacyLoadFromReader(configData io.Reader) (*Config, error) {
 // a reader
 func LoadFromReader(configData io.Reader) (*Config, error) {
 	configFile := Config{
-		Registry: &Registry{
-			AuthConfigs: make(map[string]AuthConfig),
-		},
+		Auths: make(map[string]AuthConfig),
 	}
 	err := configFile.LoadFromReader(configData)
 	return &configFile, err

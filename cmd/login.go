@@ -14,11 +14,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"e.coding.net/codingcorp/carctl/cmd/require"
-	"e.coding.net/codingcorp/carctl/pkg/action/login"
 	"e.coding.net/codingcorp/carctl/pkg/settings"
 )
 
-const registryLoginDesc = `
+const loginDesc = `
 Authenticate to a remote CODING Artifact Registry.
 
 Examples:
@@ -29,11 +28,11 @@ Examples:
     $ echo PASSWORD | carctl registry login yourteam-maven.pkg.coding.net -u USERNAME --password-stdin
 `
 
-func newRegistryLoginCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
+func newLoginCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "login [host]",
 		Short: "login to a CODING Artifact Registry",
-		Long:  registryLoginDesc,
+		Long:  loginDesc,
 		Args:  require.MinimumNArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			host := args[0]
@@ -46,7 +45,7 @@ func newRegistryLoginCmd(cfg *action.Configuration, out io.Writer) *cobra.Comman
 				debug("Got username: [%s], password: [%s]", username, password)
 			}
 
-			return login.NewRegistryLogin(cfg).Run(out, host, username, password, settings.Insecure)
+			return action.NewRegistryLogin(cfg).Run(out, host, username, password, settings.Insecure)
 		},
 	}
 
@@ -72,8 +71,9 @@ func getUsernamePassword(usernameOpt string, passwordOpt string, passwordFromStd
 		}
 		password = strings.TrimSuffix(string(passwordFromStdin), "\n")
 		password = strings.TrimSuffix(password, "\r")
-	} else if password == "" {
+	} else {
 		warning("Using --password via the CLI is insecure. Use --password-stdin.")
+
 		if username == "" {
 			username, err = readLine("Username: ", false)
 			if err != nil {
@@ -81,14 +81,8 @@ func getUsernamePassword(usernameOpt string, passwordOpt string, passwordFromStd
 			}
 			username = strings.TrimSpace(username)
 		}
-		if username == "" {
-			password, err = readLine("Token: ", true)
-			if err != nil {
-				return "", "", err
-			} else if password == "" {
-				return "", "", errors.New("token required")
-			}
-		} else {
+
+		if password == "" {
 			password, err = readLine("Password: ", true)
 			if err != nil {
 				return "", "", err

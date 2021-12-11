@@ -1,17 +1,16 @@
-package login
+package action
 
 import (
 	"io"
 
-	"e.coding.net/codingcorp/carctl/pkg/action"
 	"e.coding.net/codingcorp/carctl/pkg/registry"
 )
 
 type RegistryLogin struct {
-	cfg *action.Configuration
+	cfg *Configuration
 }
 
-func NewRegistryLogin(cfg *action.Configuration) *RegistryLogin {
+func NewRegistryLogin(cfg *Configuration) *RegistryLogin {
 	return &RegistryLogin{
 		cfg: cfg,
 	}

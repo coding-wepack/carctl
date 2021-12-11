@@ -5,6 +5,7 @@ import (
 
 	"e.coding.net/codingcorp/carctl/pkg/auth"
 	"e.coding.net/codingcorp/carctl/pkg/config"
+	"github.com/pkg/errors"
 )
 
 // Login logs in to a docker registry identified by the hostname.
@@ -30,6 +31,13 @@ func (c *Client) LoginWithOpts(options ...auth.LoginOption) error {
 }
 
 func (c *Client) login(settings *auth.LoginSettings) error {
+	if settings.Username == "" {
+		return errors.New("username couldn't be empty")
+	}
+	if settings.Secret == "" {
+		return errors.New("password couldn't be empty")
+	}
+
 	// TODO: ping to server
 
 	// store to config file

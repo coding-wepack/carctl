@@ -7,10 +7,9 @@ import (
 
 	"e.coding.net/codingcorp/carctl/cmd/require"
 	"e.coding.net/codingcorp/carctl/pkg/action"
-	"e.coding.net/codingcorp/carctl/pkg/action/login"
 )
 
-const registryLogoutDesc = `
+const logoutDesc = `
 Remove credentials stored for a remote registry.
 
 Examples:
@@ -18,15 +17,15 @@ Examples:
     $ carctl registry logout yourteam-maven.pkg.coding.net
 `
 
-func newRegistryLogoutCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
+func newLogoutCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 	return &cobra.Command{
 		Use:   "logout [host]",
 		Short: "logout from a registry",
-		Long:  registryLogoutDesc,
+		Long:  logoutDesc,
 		Args:  require.MinimumNArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
 			host := args[0]
-			return login.NewRegistryLogout(cfg).Run(out, host)
+			return action.NewRegistryLogout(cfg).Run(out, host)
 		},
 	}
 }

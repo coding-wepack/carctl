@@ -1,13 +1,9 @@
 package config
 
 type Config struct {
-	Filename string    `json:"-"` // Note: for internal use only
-	Registry *Registry `json:"registry,omitempty"`
-	Proxy    *Proxy    `json:"proxy,omitempty"`
-}
-
-type Registry struct {
-	AuthConfigs map[string]AuthConfig `json:"auths,omitempty"`
+	Filename string                `json:"-"` // Note: for internal use only
+	Auths    map[string]AuthConfig `json:"auths,omitempty"`
+	Proxy    *Proxy                `json:"proxy,omitempty"`
 }
 
 // AuthConfig contains authorization information for connecting to a Registry

@@ -1,18 +1,16 @@
-package login
+package action
 
 import (
 	"io"
-
-	"e.coding.net/codingcorp/carctl/pkg/action"
 )
 
 // RegistryLogout performs a registry login operation.
 type RegistryLogout struct {
-	cfg *action.Configuration
+	cfg *Configuration
 }
 
 // NewRegistryLogout creates a new RegistryLogout object with the given configuration.
-func NewRegistryLogout(cfg *action.Configuration) *RegistryLogout {
+func NewRegistryLogout(cfg *Configuration) *RegistryLogout {
 	return &RegistryLogout{
 		cfg: cfg,
 	}
