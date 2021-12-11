@@ -8,6 +8,23 @@ Such as `migrate`, you can migrate artifacts from a local directory or a remote 
 to a CODING Artifact Repository easily.
 
 
+## Installation
+
+### cURL & wget
+
+```shell
+$ curl -fL 'https://coding-public-generic.pkg.coding.net/registry/disk/carctl/linux/amd64/carctl?version=0.1.0' carctl
+# or wget
+$ wget 'https://coding-public-generic.pkg.coding.net/registry/disk/carctl/linux/amd64/carctl?version=0.1.0' -O carctl
+
+$ chmod +x carctl
+$ sudo mv carctl /usr/local/bin
+
+# validate
+$ carctl
+```
+
+
 ## Help
 
 ```shell
