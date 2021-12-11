@@ -1,21 +1,31 @@
 package maven
 
 import (
+	"io"
 	"io/fs"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/pkg/errors"
 
+	"e.coding.net/codingcorp/carctl/pkg/action"
 	"e.coding.net/codingcorp/carctl/pkg/config"
 	"e.coding.net/codingcorp/carctl/pkg/log"
 	"e.coding.net/codingcorp/carctl/pkg/log/logfields"
 	"e.coding.net/codingcorp/carctl/pkg/settings"
 	"e.coding.net/codingcorp/carctl/pkg/util/fileutil"
+	"e.coding.net/codingcorp/carctl/pkg/util/httputil"
+	"e.coding.net/codingcorp/carctl/pkg/util/ioutils"
 )
 
-func Migrate() error {
+var (
+	ErrFileConflict = errors.New("failed to put file: 409 conflict")
+)
+
+func Migrate(cfg *action.Configuration, out io.Writer) error {
 	if settings.Src == "" {
 		settings.Src = defaultMavenRepositoryPath()
 	}
@@ -34,20 +44,117 @@ func Migrate() error {
 		return errors.New("source repository is not a directory")
 	}
 
-	log.Info("count packages under")
+	log.Info("check authorization of the registry")
+	configFile, err := cfg.RegistryClient.ConfigFile()
+	if err != nil {
+		return errors.Wrap(err, "failed to get config file")
+	}
 
-	// TODO: max packages support
-	packages, err := fileutil.ListVisibleDirNamesWithSort(settings.Src, -1)
+	has, authConfig, err := configFile.GetAuthConfig(settings.Dst)
+	if err != nil {
+		return errors.Wrap(err, "failed to get registry authorization info")
+	}
+	if !has {
+		return errors.New("Unauthorized: authentication required. Maybe you haven't logged in before.")
+	}
+
+	if settings.Verbose {
+		log.Debug("auth config", logfields.String("host", authConfig.ServerAddress),
+			logfields.String("username", authConfig.Username),
+			logfields.String("password", authConfig.Password))
+	}
+
+	if err = migrateRepository(out, authConfig.Username, authConfig.Password); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func migrateRepository(w io.Writer, username, password string) error {
+	log.Info("scanning repository ...")
+
+	repository, err := GetRepository(settings.Src, settings.MaxFiles)
 	if err != nil {
 		return err
 	}
-	if len(packages) == 0 {
-		log.Info("no packages found in source repository")
+	flattenRepository := repository.Flatten()
+	log.Info("successfully to scan the repository",
+		logfields.Int("groups", flattenRepository.GetGroupCount()),
+		logfields.Int("artifacts", flattenRepository.GetArtifactCount()),
+		logfields.Int("versions", flattenRepository.GetVersionCount()),
+		logfields.Int("files", flattenRepository.GetFileCount()))
+	if flattenRepository.GetFileCount() == 0 {
+		log.Warn("no files found, no need to migrate")
 		return nil
 	}
+	if settings.Verbose {
+		log.Info("Repository Info:")
+		repository.Render(w)
+	}
 
-	log.Info("found packages in source repository", logfields.Int("count", len(packages)),
-		logfields.Strings("packages", packages))
+	log.Info("Begin to migrate ...")
+	start := time.Now()
+
+	var (
+		succeededCount int
+		failedCount    int
+		skippedCount   int
+	)
+	for _, g := range repository.Groups {
+		for _, a := range g.Artifacts {
+			for _, v := range a.Versions {
+				for _, f := range v.Files {
+					if err := doMigrate(f.Path, username, password); err != nil {
+						if err == ErrFileConflict {
+							skippedCount++
+							continue
+						}
+						failedCount++
+						if settings.FailFast {
+							return errors.Wrapf(err, "failed to migrate %s", f.Path)
+						} else {
+							log.Warn("an error occurred during migration",
+								logfields.String("file", f.Path),
+								logfields.String("error", err.Error()))
+						}
+					} else {
+						succeededCount++
+						if settings.Verbose {
+							log.Info("Successfully migrated:", logfields.String("file", f.Path))
+						}
+					}
+				}
+			}
+		}
+	}
+
+	log.Info("End to migrate.",
+		logfields.Duration("duration", time.Now().Sub(start)),
+		logfields.Int("total", succeededCount+failedCount+skippedCount),
+		logfields.Int("succeededCount", succeededCount),
+		logfields.Int("failedCount", failedCount),
+		logfields.Int("skippedCount", skippedCount))
+
+	return nil
+}
+
+func doMigrate(file, username, password string) error {
+	u := getPushUrl(file)
+	log.Info("Put file:", logfields.String("file", file), logfields.String("url", u))
+	resp, err := httputil.DefaultClient.PutFile(u, file, username, password)
+	if err != nil {
+		return err
+	}
+	defer ioutils.QuiteClose(resp.Body)
+	if resp.StatusCode >= http.StatusBadRequest {
+		if resp.StatusCode == http.StatusConflict {
+			log.Warn("409 Conflict: file has been pushed, and the strategy of destination is not overridable, so just skip it",
+				logfields.String("file", file))
+			return ErrFileConflict
+		}
+		return errors.Errorf("got an unexpected response status: %s", resp.Status)
+	}
 
 	return nil
 }
@@ -74,7 +181,7 @@ func GetRepository(repositoryPath string, maxFiles int) (repository *Repository,
 			return nil
 		}
 		if maxFiles >= 0 && fileCount >= maxFiles { // FIXME
-			return nil
+			return filepath.SkipDir
 		}
 
 		groupName, artifact, version, filename, err := getArtInfo(path, repositoryPath)
@@ -109,6 +216,11 @@ func getArtInfo(path, repositoryPath string) (groupName, artifact, version, file
 	artifact = subPathChunks[size-3]
 	groupName = strings.Join(subPathChunks[:size-3], ".")
 	return
+}
+
+func getPushUrl(filePath string) string {
+	subPath := strings.Trim(strings.TrimPrefix(filePath, settings.Src), "/")
+	return strings.TrimSuffix(settings.Dst, "/") + "/" + subPath
 }
 
 func defaultMavenRepositoryPath() string {

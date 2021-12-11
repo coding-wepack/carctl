@@ -13,6 +13,7 @@ import (
 var (
 	globalLogger        Logger
 	globalSugaredLogger SugaredLogger
+	globalLoggerLevel   zap.AtomicLevel
 )
 
 var (
@@ -116,7 +117,7 @@ type Config struct {
 	ErrorOutputPaths []string
 }
 
-func New(cfgs ...*Config) Logger {
+func New(cfgs ...*Config) (Logger, zap.AtomicLevel) {
 	var cfg *Config
 	if len(cfgs) > 0 {
 		cfg = cfgs[0]
@@ -153,7 +154,7 @@ func New(cfgs ...*Config) Logger {
 
 	l.sugaredLogger = l.logger.Sugar()
 
-	return l
+	return l, atomicLevel
 }
 
 func getConfig(atomicLevel zap.AtomicLevel, encoding string, outputPaths, errorOutputPaths []string) zap.Config {
@@ -261,7 +262,7 @@ func encodeTimeLayout(t time.Time, layout string, enc zapcore.PrimitiveArrayEnco
 
 func init() {
 	// stdlog.Printf("Initiate logger ...")
-	globalLogger = New()
+	globalLogger, globalLoggerLevel = New()
 	globalSugaredLogger = globalLogger.SugaredLogger()
 	zap.ReplaceGlobals(globalLogger.CoreLogger())
 }

@@ -100,28 +100,31 @@ func (c *Config) GetAllAuthConfigs() map[string]AuthConfig {
 }
 
 // GetAuthConfig for a repository from the credential store
-func (c *Config) GetAuthConfig(serverAddress string) (AuthConfig, error) {
+func (c *Config) GetAuthConfig(serverAddress string) (bool, AuthConfig, error) {
+	serverAddress = ConvertToHostname(serverAddress)
 	authConfig, ok := c.Registry.AuthConfigs[serverAddress]
 	if !ok {
 		// Maybe they have a legacy config file, we will iterate the keys converting
 		// them to the new format and testing
 		for r, ac := range c.Registry.AuthConfigs {
 			if serverAddress == ConvertToHostname(r) {
-				return ac, nil
+				return true, ac, nil
 			}
 		}
 
-		authConfig = AuthConfig{}
+		return false, AuthConfig{}, nil
 	}
-	return authConfig, nil
+	return true, authConfig, nil
 }
 
 func (c *Config) StoreAuth(authConfig AuthConfig) error {
+	authConfig.ServerAddress = ConvertToHostname(authConfig.ServerAddress)
 	c.Registry.AuthConfigs[authConfig.ServerAddress] = authConfig
 	return c.Save()
 }
 
 func (c *Config) RemoveAuthConfig(serverAddress string) error {
+	serverAddress = ConvertToHostname(serverAddress)
 	delete(c.Registry.AuthConfigs, serverAddress)
 	return c.Save()
 }

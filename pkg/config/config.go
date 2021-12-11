@@ -107,6 +107,27 @@ func LoadFromReader(configData io.Reader) (*Config, error) {
 	return &configFile, err
 }
 
+func LoadConfigFile(configFile string) (*Config, error) {
+	cf := New(configFile)
+
+	// Try happy path first - latest config file
+	if file, err := os.Open(configFile); err == nil {
+		defer file.Close()
+		err = cf.LoadFromReader(file)
+		if err != nil {
+			err = errors.Wrap(err, configFile)
+		}
+		return cf, err
+	} else if !os.IsNotExist(err) {
+		// if file is there but we can't stat it for any reason other
+		// than it doesn't exist then stop
+		return cf, errors.Wrap(err, configFile)
+	} else {
+		// not found
+		return nil, err
+	}
+}
+
 // Load reads the configuration files in the given directory, and sets up
 // the auth config information and returns values.
 // FIXME: use the internal golang config parser

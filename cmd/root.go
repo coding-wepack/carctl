@@ -49,7 +49,7 @@ func newRootCmd(cfg *action.Configuration, out io.Writer, args []string) (*cobra
 	cfg.RegistryClient = registryClient
 
 	cmd.AddCommand(
-		newMigrateCmd(),
+		newMigrateCmd(cfg, out),
 		newVersionCmd(),
 		newRegistryCmd(cfg, out),
 	)

@@ -20,8 +20,8 @@ var (
 	// PasswordFromStdin reads password from stdin if true.
 	PasswordFromStdin bool
 
-	// Type is artifact type.
-	Type string
+	// FailFast will return error once occurred if true
+	FailFast bool
 
 	// Src is a file path or an url of the artifacts where you want to migrate.
 	Src string

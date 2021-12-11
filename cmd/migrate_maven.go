@@ -1,8 +1,11 @@
 package main
 
 import (
+	"io"
+
 	"github.com/spf13/cobra"
 
+	"e.coding.net/codingcorp/carctl/pkg/action"
 	"e.coding.net/codingcorp/carctl/pkg/migrate/maven"
 	"e.coding.net/codingcorp/carctl/pkg/settings"
 )
@@ -23,13 +26,14 @@ Examples:
           --dst="https://demo-maven.pkg.coding.net/repository/test-project/dst-repo/"
 `
 
-func newMigrateMavenCmd() *cobra.Command {
+func newMigrateMavenCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "maven",
-		Short: "migrate maven repository to a CODING Artifact Repository.",
-		Long:  migrateMavenHelp,
+		Use:    "maven",
+		Short:  "migrate maven repository to a CODING Artifact Repository.",
+		Long:   migrateMavenHelp,
+		PreRun: PreRun,
 		RunE: func(c *cobra.Command, args []string) error {
-			return maven.Migrate()
+			return maven.Migrate(cfg, out)
 		},
 	}
 
@@ -46,6 +50,8 @@ func newMigrateMavenCmd() *cobra.Command {
 	// optional flags
 	cmd.Flags().DurationVar(&settings.Sleep, "sleep", 0, "e.g., --sleep=3s. The default is 0, which means there will be no time to sleep")
 	cmd.Flags().IntVarP(&settings.Concurrency, "concurrency", "c", 1, "e.g., -c=2. Concurrency controls for how many artifacts can be pushed concurrently")
+	cmd.Flags().BoolVar(&settings.FailFast, "failFast", false, "exit directly if there was an error found during migration")
+	// TODO: max-arts support
 	cmd.Flags().IntVar(&settings.MaxFiles, "max-files", -1, "Maximum number of files to be pushed. Negative number means unlimited.")
 
 	return cmd

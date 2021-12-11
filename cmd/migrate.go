@@ -1,9 +1,12 @@
 package main
 
 import (
+	"io"
+
 	"github.com/spf13/cobra"
 
 	"e.coding.net/codingcorp/carctl/cmd/require"
+	"e.coding.net/codingcorp/carctl/pkg/action"
 )
 
 const migrateHelp = `
@@ -32,7 +35,7 @@ Examples:
 Flags '--src' and '--dst' must be set.
 `
 
-func newMigrateCmd() *cobra.Command {
+func newMigrateCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "migrate [TYPE]",
 		Short: "Migrate artifacts from anywhere to a CODING Artifact Repository.",
@@ -42,7 +45,7 @@ func newMigrateCmd() *cobra.Command {
 
 	// add subcommands
 	cmd.AddCommand(
-		newMigrateMavenCmd(),
+		newMigrateMavenCmd(cfg, out),
 	)
 
 	return cmd

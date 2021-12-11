@@ -2,6 +2,7 @@ package log
 
 import (
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 func DefaultLogger() Logger {
@@ -10,6 +11,14 @@ func DefaultLogger() Logger {
 
 func DefaultSugaredLogger() SugaredLogger {
 	return globalSugaredLogger
+}
+
+func SetLevel(lvl zapcore.Level) {
+	globalLoggerLevel.SetLevel(lvl)
+}
+
+func SetDebug() {
+	SetLevel(DebugLevel)
 }
 
 func Named(s string) Logger {

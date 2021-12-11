@@ -73,6 +73,7 @@ func getUsernamePassword(usernameOpt string, passwordOpt string, passwordFromStd
 		password = strings.TrimSuffix(string(passwordFromStdin), "\n")
 		password = strings.TrimSuffix(password, "\r")
 	} else if password == "" {
+		warning("Using --password via the CLI is insecure. Use --password-stdin.")
 		if username == "" {
 			username, err = readLine("Username: ", false)
 			if err != nil {
@@ -95,8 +96,6 @@ func getUsernamePassword(usernameOpt string, passwordOpt string, passwordFromStd
 				return "", "", errors.New("password required")
 			}
 		}
-	} else {
-		warning("Using --password via the CLI is insecure. Use --password-stdin.")
 	}
 
 	return username, password, nil

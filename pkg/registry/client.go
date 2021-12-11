@@ -42,6 +42,14 @@ func NewClient(options ...ClientOption) (*Client, error) {
 	return client, nil
 }
 
+func (c *Client) ConfigFilePath() string {
+	return c.configFile
+}
+
+func (c *Client) ConfigFile() (*config.Config, error) {
+	return config.LoadConfigFile(c.configFile)
+}
+
 // ClientOptVerbose returns a function that sets the debug setting on client options set
 func ClientOptVerbose(verbose bool) ClientOption {
 	return func(client *Client) {
