@@ -209,7 +209,7 @@ func getArtInfo(path, repositoryPath string) (groupName, artifact, version, file
 
 	subPathChunks := strings.Split(subPath, "/")
 	size := len(subPathChunks)
-	if size < 4 {
+	if size < 3 {
 		return "", "", "", "", errors.New("invalid path")
 	}
 	version = subPathChunks[size-2]
