@@ -116,51 +116,263 @@ Removing login credentials for team-maven.pkg.coding.net
 Migrate your maven repository to a remote maven repository:
 
 ```shell
-$ carctl migrate maven --src=/home/juan/.m2/swagger-core-repository --dst=http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/swagger-repository/
-2021-12-11 21:28:32.136	INFO	Stat source repository ...
-2021-12-11 21:28:32.138	INFO	Check authorization of the registry
-2021-12-11 21:28:32.143	INFO	Scanning repository ...
-2021-12-11 21:28:32.148	INFO	Successfully to scan the repository	{"groups": 1, "artifacts": 1, "versions": 1, "files": 4}
-2021-12-11 21:28:32.148	INFO	Begin to migrate ...
-2021-12-11 21:28:32.148	INFO	Put file:	{"file": "/home/juan/.m2/swagger-core-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.jar", "url": "http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/swagger-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.jar"}
-2021-12-11 21:28:32.830	INFO	Put file:	{"file": "/home/juan/.m2/swagger-core-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.jar.sha1", "url": "http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/swagger-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.jar.sha1"}
-2021-12-11 21:28:32.970	INFO	Put file:	{"file": "/home/juan/.m2/swagger-core-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.pom", "url": "http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/swagger-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.pom"}
-2021-12-11 21:28:33.198	INFO	Put file:	{"file": "/home/juan/.m2/swagger-core-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.pom.sha1", "url": "http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/swagger-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.pom.sha1"}
-2021-12-11 21:28:33.382	INFO	End to migrate.	{"duration": "1.234179809s", "total": 4, "succeededCount": 4, "failedCount": 0, "skippedCount": 0}
+$ carctl migrate maven --src=/home/juan/.m2/swagger-repository --dst=http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/overridable-maven-migrate/   
+2021-12-13 16:35:30.067	INFO	Stat source repository ...
+2021-12-13 16:35:30.067	INFO	Check authorization of the registry
+2021-12-13 16:35:30.067	INFO	Scanning repository ...
+2021-12-13 16:35:30.067	INFO	Successfully to scan the repository	{"groups": 3, "artifacts": 16, "versions": 16, "files": 56}
+2021-12-13 16:35:30.067	INFO	Begin to migrate ...
+Pushing: Done! [==============================================================================] 56 / 56  100 %
+2021-12-13 16:35:39.742	INFO	End to migrate.	{"duration": "9.674504559s", "succeededCount": 56, "skippedCount": 0, "failedCount": 0}
 ```
 
 You can use `-v` or `--verbose` flag to see more info:
 
 ```shell
-$ carctl migrate maven --src=/home/juan/.m2/swagger-core-repository --dst=http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/swagger-core-repository/ -v
-2021-12-11 21:31:09.612	INFO	Stat source repository ...
-2021-12-11 21:31:09.620	INFO	Check authorization of the registry
-2021-12-11 21:31:09.626	DEBUG	Auth config	{"host": "codingcorp-maven.pkg.nh4ivfk.dev.coding.io", "username": "coding-coding", "password": "coding123"}
-2021-12-11 21:31:09.626	INFO	Scanning repository ...
-2021-12-11 21:31:09.645	INFO	Successfully to scan the repository	{"groups": 1, "artifacts": 1, "versions": 1, "files": 4}
-2021-12-11 21:31:09.645	INFO	Repository Info:
-+--------------------+--------------------+-------------------+-----------------------------+
-|      GROUP ID      |    ARTIFACT ID     |      VERSION      |            FILE             |
-+--------------------+--------------------+-------------------+-----------------------------+
-| io.swagger.core.v3 | swagger-core       | 2.1.2             | swagger-core-2.1.2.jar      |
-+                    +                    +                   +-----------------------------+
-|                    |                    |                   | swagger-core-2.1.2.jar.sha1 |
-+                    +                    +                   +-----------------------------+
-|                    |                    |                   | swagger-core-2.1.2.pom      |
-+                    +                    +                   +-----------------------------+
-|                    |                    |                   | swagger-core-2.1.2.pom.sha1 |
-+--------------------+--------------------+-------------------+-----------------------------+
-|  TOTAL GROUPS: 1   | TOTAL ARTIFACTS: 1 | TOTAL VERSIONS: 1 |       TOTAL FILES: 4        |
-+--------------------+--------------------+-------------------+-----------------------------+
-2021-12-11 21:31:09.645	INFO	Begin to migrate ...
-2021-12-11 21:31:09.645	INFO	Put file:	{"file": "/home/juan/.m2/swagger-core-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.jar", "url": "http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/swagger-core-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.jar"}
-2021-12-11 21:31:10.299	INFO	Successfully migrated:	{"file": "/home/juan/.m2/swagger-core-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.jar"}
-2021-12-11 21:31:10.299	INFO	Put file:	{"file": "/home/juan/.m2/swagger-core-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.jar.sha1", "url": "http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/swagger-core-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.jar.sha1"}
-2021-12-11 21:31:10.514	INFO	Successfully migrated:	{"file": "/home/juan/.m2/swagger-core-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.jar.sha1"}
-2021-12-11 21:31:10.514	INFO	Put file:	{"file": "/home/juan/.m2/swagger-core-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.pom", "url": "http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/swagger-core-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.pom"}
-2021-12-11 21:31:10.731	INFO	Successfully migrated:	{"file": "/home/juan/.m2/swagger-core-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.pom"}
-2021-12-11 21:31:10.731	INFO	Put file:	{"file": "/home/juan/.m2/swagger-core-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.pom.sha1", "url": "http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/swagger-core-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.pom.sha1"}
-2021-12-11 21:31:10.878	INFO	Successfully migrated:	{"file": "/home/juan/.m2/swagger-core-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.pom.sha1"}
-2021-12-11 21:31:10.878	INFO	End to migrate.	{"duration": "1.232229131s", "total": 4, "succeededCount": 4, "failedCount": 0, "skippedCount": 0}
+$ carctl migrate maven --src=/home/juan/.m2/swagger-repository --dst=http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/overridable-maven-migrate/ -v
+2021-12-13 16:33:58.526	INFO	Stat source repository ...
+2021-12-13 16:33:58.529	INFO	Check authorization of the registry
+2021-12-13 16:33:58.531	DEBUG	Auth config	{"host": "codingcorp-maven.pkg.nh4ivfk.dev.coding.io", "username": "coding-coding", "password": "coding123"}
+2021-12-13 16:33:58.532	INFO	Scanning repository ...
+2021-12-13 16:33:58.532	INFO	Successfully to scan the repository	{"groups": 3, "artifacts": 16, "versions": 16, "files": 56}
+2021-12-13 16:33:58.532	INFO	Repository Info:
++----------------------+-----------------------------+--------------------+---------------------------------------------+
+|       GROUP ID       |         ARTIFACT ID         |      VERSION       |                    FILE                     |
++----------------------+-----------------------------+--------------------+---------------------------------------------+
+| io.swagger.core.v3   | swagger-annotations         | 2.1.2              | swagger-annotations-2.1.2.jar               |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-annotations-2.1.2.jar.sha1          |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-annotations-2.1.2.pom               |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-annotations-2.1.2.pom.sha1          |
++                      +-----------------------------+                    +---------------------------------------------+
+|                      | swagger-core                |                    | swagger-core-2.1.2.jar                      |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-core-2.1.2.jar.sha1                 |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-core-2.1.2.pom                      |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-core-2.1.2.pom.sha1                 |
++                      +-----------------------------+                    +---------------------------------------------+
+|                      | swagger-models              |                    | swagger-models-2.1.2.jar                    |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-models-2.1.2.jar.sha1               |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-models-2.1.2.pom                    |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-models-2.1.2.pom.sha1               |
++                      +-----------------------------+                    +---------------------------------------------+
+|                      | swagger-project             |                    | swagger-project-2.1.2.pom                   |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-project-2.1.2.pom.sha1              |
++----------------------+-----------------------------+--------------------+---------------------------------------------+
+| io.swagger.parser.v3 | swagger-parser              | 2.0.20             | swagger-parser-2.0.20.jar                   |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-parser-2.0.20.jar.sha1              |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-parser-2.0.20.pom                   |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-parser-2.0.20.pom.sha1              |
++                      +-----------------------------+                    +---------------------------------------------+
+|                      | swagger-parser-core         |                    | swagger-parser-core-2.0.20.jar              |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-parser-core-2.0.20.jar.sha1         |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-parser-core-2.0.20.pom              |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-parser-core-2.0.20.pom.sha1         |
++                      +-----------------------------+                    +---------------------------------------------+
+|                      | swagger-parser-project      |                    | swagger-parser-project-2.0.20.pom           |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-parser-project-2.0.20.pom.sha1      |
++                      +-----------------------------+                    +---------------------------------------------+
+|                      | swagger-parser-v2-converter |                    | swagger-parser-v2-converter-2.0.20.jar      |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-parser-v2-converter-2.0.20.jar.sha1 |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-parser-v2-converter-2.0.20.pom      |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-parser-v2-converter-2.0.20.pom.sha1 |
++                      +-----------------------------+                    +---------------------------------------------+
+|                      | swagger-parser-v3           |                    | swagger-parser-v3-2.0.20.jar                |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-parser-v3-2.0.20.jar.sha1           |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-parser-v3-2.0.20.pom                |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-parser-v3-2.0.20.pom.sha1           |
++----------------------+-----------------------------+--------------------+---------------------------------------------+
+| io.swagger           | swagger-annotations         | 1.6.1              | swagger-annotations-1.6.1.jar               |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-annotations-1.6.1.jar.sha1          |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-annotations-1.6.1.pom               |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-annotations-1.6.1.pom.sha1          |
++                      +-----------------------------+--------------------+---------------------------------------------+
+|                      | swagger-compat-spec-parser  | 1.0.51             | swagger-compat-spec-parser-1.0.51.jar       |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-compat-spec-parser-1.0.51.jar.sha1  |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-compat-spec-parser-1.0.51.pom       |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-compat-spec-parser-1.0.51.pom.sha1  |
++                      +-----------------------------+--------------------+---------------------------------------------+
+|                      | swagger-core                | 1.6.1              | swagger-core-1.6.1.jar                      |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-core-1.6.1.jar.sha1                 |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-core-1.6.1.pom                      |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-core-1.6.1.pom.sha1                 |
++                      +-----------------------------+                    +---------------------------------------------+
+|                      | swagger-models              |                    | swagger-models-1.6.1.jar                    |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-models-1.6.1.jar.sha1               |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-models-1.6.1.pom                    |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-models-1.6.1.pom.sha1               |
++                      +-----------------------------+--------------------+---------------------------------------------+
+|                      | swagger-parser              | 1.0.51             | swagger-parser-1.0.51.jar                   |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-parser-1.0.51.jar.sha1              |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-parser-1.0.51.pom                   |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-parser-1.0.51.pom.sha1              |
++                      +-----------------------------+                    +---------------------------------------------+
+|                      | swagger-parser-project      |                    | swagger-parser-project-1.0.51.pom           |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-parser-project-1.0.51.pom.sha1      |
++                      +-----------------------------+--------------------+---------------------------------------------+
+|                      | swagger-project             | 1.6.1              | swagger-project-1.6.1.pom                   |
++                      +                             +                    +---------------------------------------------+
+|                      |                             |                    | swagger-project-1.6.1.pom.sha1              |
++----------------------+-----------------------------+--------------------+---------------------------------------------+
+|   TOTAL GROUPS: 3    |     TOTAL ARTIFACTS: 16     | TOTAL VERSIONS: 16 |               TOTAL FILES: 56               |
++----------------------+-----------------------------+--------------------+---------------------------------------------+
+2021-12-13 16:33:58.542	INFO	Begin to migrate ...
+Pushing: Done! [==============================================================================] 56 / 56  100 %
+2021-12-13 16:34:08.780	INFO	End to migrate.	{"duration": "10.237994014s", "succeededCount": 56, "skippedCount": 0, "failedCount": 0}
+2021-12-13 16:34:08.780	INFO	Migrate result:
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                        ARTIFACT                         |                                                                 PATH                                                                  |  RESULT   |
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| io.swagger.core.v3:swagger-annotations:2.1.2            | /home/juan/.m2/swagger-repository/io/swagger/core/v3/swagger-annotations/2.1.2/swagger-annotations-2.1.2.jar                          | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/core/v3/swagger-annotations/2.1.2/swagger-annotations-2.1.2.jar.sha1                     | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/core/v3/swagger-annotations/2.1.2/swagger-annotations-2.1.2.pom                          | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/core/v3/swagger-annotations/2.1.2/swagger-annotations-2.1.2.pom.sha1                     | Succeeded |
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| io.swagger.core.v3:swagger-core:2.1.2                   | /home/juan/.m2/swagger-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.jar                                        | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.jar.sha1                                   | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.pom                                        | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/core/v3/swagger-core/2.1.2/swagger-core-2.1.2.pom.sha1                                   | Succeeded |
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| io.swagger.core.v3:swagger-models:2.1.2                 | /home/juan/.m2/swagger-repository/io/swagger/core/v3/swagger-models/2.1.2/swagger-models-2.1.2.jar                                    | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/core/v3/swagger-models/2.1.2/swagger-models-2.1.2.jar.sha1                               | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/core/v3/swagger-models/2.1.2/swagger-models-2.1.2.pom                                    | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/core/v3/swagger-models/2.1.2/swagger-models-2.1.2.pom.sha1                               | Succeeded |
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| io.swagger.core.v3:swagger-project:2.1.2                | /home/juan/.m2/swagger-repository/io/swagger/core/v3/swagger-project/2.1.2/swagger-project-2.1.2.pom                                  | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/core/v3/swagger-project/2.1.2/swagger-project-2.1.2.pom.sha1                             | Succeeded |
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| io.swagger.parser.v3:swagger-parser-core:2.0.20         | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser-core/2.0.20/swagger-parser-core-2.0.20.pom                      | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser-core/2.0.20/swagger-parser-core-2.0.20.pom.sha1                 | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser-core/2.0.20/swagger-parser-core-2.0.20.jar                      | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser-core/2.0.20/swagger-parser-core-2.0.20.jar.sha1                 | Succeeded |
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| io.swagger.parser.v3:swagger-parser-project:2.0.20      | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser-project/2.0.20/swagger-parser-project-2.0.20.pom.sha1           | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser-project/2.0.20/swagger-parser-project-2.0.20.pom                | Succeeded |
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| io.swagger.parser.v3:swagger-parser-v2-converter:2.0.20 | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser-v2-converter/2.0.20/swagger-parser-v2-converter-2.0.20.pom.sha1 | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser-v2-converter/2.0.20/swagger-parser-v2-converter-2.0.20.jar      | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser-v2-converter/2.0.20/swagger-parser-v2-converter-2.0.20.jar.sha1 | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser-v2-converter/2.0.20/swagger-parser-v2-converter-2.0.20.pom      | Succeeded |
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| io.swagger.parser.v3:swagger-parser-v3:2.0.20           | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser-v3/2.0.20/swagger-parser-v3-2.0.20.jar.sha1                     | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser-v3/2.0.20/swagger-parser-v3-2.0.20.pom                          | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser-v3/2.0.20/swagger-parser-v3-2.0.20.pom.sha1                     | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser-v3/2.0.20/swagger-parser-v3-2.0.20.jar                          | Succeeded |
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| io.swagger.parser.v3:swagger-parser:2.0.20              | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser/2.0.20/swagger-parser-2.0.20.pom.sha1                           | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser/2.0.20/swagger-parser-2.0.20.pom                                | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser/2.0.20/swagger-parser-2.0.20.jar.sha1                           | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/parser/v3/swagger-parser/2.0.20/swagger-parser-2.0.20.jar                                | Succeeded |
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| io.swagger:swagger-annotations:1.6.1                    | /home/juan/.m2/swagger-repository/io/swagger/swagger-annotations/1.6.1/swagger-annotations-1.6.1.jar                                  | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-annotations/1.6.1/swagger-annotations-1.6.1.jar.sha1                             | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-annotations/1.6.1/swagger-annotations-1.6.1.pom                                  | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-annotations/1.6.1/swagger-annotations-1.6.1.pom.sha1                             | Succeeded |
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| io.swagger:swagger-compat-spec-parser:1.0.51            | /home/juan/.m2/swagger-repository/io/swagger/swagger-compat-spec-parser/1.0.51/swagger-compat-spec-parser-1.0.51.jar                  | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-compat-spec-parser/1.0.51/swagger-compat-spec-parser-1.0.51.jar.sha1             | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-compat-spec-parser/1.0.51/swagger-compat-spec-parser-1.0.51.pom                  | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-compat-spec-parser/1.0.51/swagger-compat-spec-parser-1.0.51.pom.sha1             | Succeeded |
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| io.swagger:swagger-core:1.6.1                           | /home/juan/.m2/swagger-repository/io/swagger/swagger-core/1.6.1/swagger-core-1.6.1.jar                                                | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-core/1.6.1/swagger-core-1.6.1.jar.sha1                                           | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-core/1.6.1/swagger-core-1.6.1.pom.sha1                                           | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-core/1.6.1/swagger-core-1.6.1.pom                                                | Succeeded |
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| io.swagger:swagger-models:1.6.1                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-models/1.6.1/swagger-models-1.6.1.jar                                            | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-models/1.6.1/swagger-models-1.6.1.jar.sha1                                       | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-models/1.6.1/swagger-models-1.6.1.pom                                            | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-models/1.6.1/swagger-models-1.6.1.pom.sha1                                       | Succeeded |
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| io.swagger:swagger-parser-project:1.0.51                | /home/juan/.m2/swagger-repository/io/swagger/swagger-parser-project/1.0.51/swagger-parser-project-1.0.51.pom                          | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-parser-project/1.0.51/swagger-parser-project-1.0.51.pom.sha1                     | Succeeded |
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| io.swagger:swagger-parser:1.0.51                        | /home/juan/.m2/swagger-repository/io/swagger/swagger-parser/1.0.51/swagger-parser-1.0.51.jar.sha1                                     | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-parser/1.0.51/swagger-parser-1.0.51.pom                                          | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-parser/1.0.51/swagger-parser-1.0.51.pom.sha1                                     | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-parser/1.0.51/swagger-parser-1.0.51.jar                                          | Succeeded |
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+| io.swagger:swagger-project:1.6.1                        | /home/juan/.m2/swagger-repository/io/swagger/swagger-project/1.6.1/swagger-project-1.6.1.pom.sha1                                     | Succeeded |
++                                                         +---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                                                         | /home/juan/.m2/swagger-repository/io/swagger/swagger-project/1.6.1/swagger-project-1.6.1.pom                                          | Succeeded |
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
+|                          TOTAL                          |                                                                  56                                                                   |            
++---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
 ```
 
