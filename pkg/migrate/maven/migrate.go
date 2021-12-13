@@ -10,11 +10,14 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/vbauerster/mpb/v7"
+	"github.com/vbauerster/mpb/v7/decor"
 
 	"e.coding.net/codingcorp/carctl/pkg/action"
 	"e.coding.net/codingcorp/carctl/pkg/config"
 	"e.coding.net/codingcorp/carctl/pkg/log"
 	"e.coding.net/codingcorp/carctl/pkg/log/logfields"
+	"e.coding.net/codingcorp/carctl/pkg/migrate/maven/types"
 	"e.coding.net/codingcorp/carctl/pkg/settings"
 	"e.coding.net/codingcorp/carctl/pkg/util/fileutil"
 	"e.coding.net/codingcorp/carctl/pkg/util/httputil"
@@ -93,55 +96,81 @@ func migrateRepository(w io.Writer, username, password string) error {
 		repository.Render(w)
 	}
 
+	// Progress Bar
+	// initialize progress container, with custom width
+	p := mpb.New(mpb.WithWidth(80))
+	total := flattenRepository.GetFileCount()
+	const pbName = "Pushing:"
+	// adding a single bar, which will inherit container's width
+	bar := p.Add(
+		int64(total),
+		mpb.NewBarFiller(mpb.BarStyle()),
+		mpb.PrependDecorators(
+			// display our name with one space on the right
+			decor.Name(pbName, decor.WC{W: len(pbName) + 1, C: decor.DidentRight}),
+			// replace ETA decorator with "done" message, OnComplete event
+			decor.OnComplete(
+				decor.AverageETA(decor.ET_STYLE_GO, decor.WC{W: 4}), "Done!",
+			),
+		),
+		mpb.AppendDecorators(
+			// counter
+			decor.Counters(0, "%d / %d  "),
+			// percentage
+			decor.Percentage(),
+			// average
+			// mpb.AppendDecorators(decor.AverageSpeed(decor.UnitKiB, "  % .1f")),
+		),
+	)
+
 	log.Info("Begin to migrate ...")
 	start := time.Now()
 
-	var (
-		succeededCount int
-		failedCount    int
-		skippedCount   int
-	)
-	for _, g := range repository.Groups {
-		for _, a := range g.Artifacts {
-			for _, v := range a.Versions {
-				for _, f := range v.Files {
-					if err := doMigrate(f.Path, username, password); err != nil {
-						if err == ErrFileConflict {
-							skippedCount++
-							continue
-						}
-						failedCount++
-						if settings.FailFast {
-							return errors.Wrapf(err, "failed to migrate %s", f.Path)
-						} else {
-							log.Warn("an error occurred during migration",
-								logfields.String("file", f.Path),
-								logfields.String("error", err.Error()))
-						}
-					} else {
-						succeededCount++
-						if settings.Verbose {
-							log.Info("Successfully migrated:", logfields.String("file", f.Path))
-						}
-					}
-				}
-			}
-		}
+	report := types.NewReport()
+	if settings.Verbose {
+		defer func() {
+			log.Info("Migrate result:")
+			report.Render(w)
+		}()
 	}
+
+	if err := repository.ForEach(func(group, artifact, version, path string) error {
+		defer bar.Increment()
+		if err1 := doMigrate(path, username, password); err1 != nil {
+			if err1 == ErrFileConflict {
+				report.AddSkippedResult(group, artifact, version, path, "409 Conflict")
+				return types.ErrForEachContinue
+			}
+
+			report.AddFailedResult(group, artifact, version, path, err1.Error())
+
+			if settings.FailFast {
+				return errors.Wrapf(err1, "failed to migrate %s", path)
+			}
+		} else {
+			report.AddSucceededResult(group, artifact, version, path, "Succeeded")
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	// wait for our bar to complete and flush
+	p.Wait()
 
 	log.Info("End to migrate.",
 		logfields.Duration("duration", time.Now().Sub(start)),
-		logfields.Int("total", succeededCount+failedCount+skippedCount),
-		logfields.Int("succeededCount", succeededCount),
-		logfields.Int("failedCount", failedCount),
-		logfields.Int("skippedCount", skippedCount))
+		logfields.Int("succeededCount", len(report.SucceededResult)),
+		logfields.Int("skippedCount", len(report.SkippedResult)),
+		logfields.Int("failedCount", len(report.FailedResult)))
 
 	return nil
 }
 
 func doMigrate(file, username, password string) error {
 	u := getPushUrl(file)
-	log.Info("Put file:", logfields.String("file", file), logfields.String("url", u))
+	// log.Info("Put file:", logfields.String("file", file), logfields.String("url", u))
 	resp, err := httputil.DefaultClient.PutFile(u, file, username, password)
 	if err != nil {
 		return err
@@ -149,8 +178,8 @@ func doMigrate(file, username, password string) error {
 	defer ioutils.QuiteClose(resp.Body)
 	if resp.StatusCode >= http.StatusBadRequest {
 		if resp.StatusCode == http.StatusConflict {
-			log.Warn("409 Conflict: file has been pushed, and the strategy of destination is not overridable, so just skip it",
-				logfields.String("file", file))
+			// log.Warn("409 Conflict: file has been pushed, and the strategy of destination is not overridable, so just skip it",
+			// 	logfields.String("file", file))
 			return ErrFileConflict
 		}
 		return errors.Errorf("got an unexpected response status: %s", resp.Status)
@@ -159,9 +188,9 @@ func doMigrate(file, username, password string) error {
 	return nil
 }
 
-func GetRepository(repositoryPath string, maxFiles int) (repository *Repository, err error) {
+func GetRepository(repositoryPath string, maxFiles int) (repository *types.Repository, err error) {
 	var fileCount int
-	repository = &Repository{Path: repositoryPath}
+	repository = &types.Repository{Path: repositoryPath}
 	if err = filepath.WalkDir(repositoryPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
@@ -170,7 +199,7 @@ func GetRepository(repositoryPath string, maxFiles int) (repository *Repository,
 			if fileutil.IsFileInvisible(d.Name()) {
 				return filepath.SkipDir
 			}
-			if !ArtifactNameRegex.MatchString(d.Name()) {
+			if !types.ArtifactNameRegex.MatchString(d.Name()) {
 				return filepath.SkipDir
 			}
 			return nil

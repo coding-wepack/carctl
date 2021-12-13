@@ -1,9 +1,11 @@
-package maven
+package types
 
 import (
 	"fmt"
 	"io"
 	"regexp"
+
+	"github.com/pkg/errors"
 
 	"github.com/olekukonko/tablewriter"
 )
@@ -14,6 +16,10 @@ const (
 
 var (
 	ArtifactNameRegex = regexp.MustCompile(ArtifactNameRegexStr)
+)
+
+var (
+	ErrForEachContinue = errors.New("continue")
 )
 
 type (
@@ -67,10 +73,11 @@ type (
 	}
 
 	FlattenVersionFile struct {
-		Filename string `json:"filename"`
-		Version  string `json:"version"`
-		Artifact string `json:"artifact"`
 		Group    string `json:"group"`
+		Artifact string `json:"artifact"`
+		Version  string `json:"version"`
+		Filename string `json:"filename"`
+		FilePath string `json:"filePath"`
 	}
 )
 
@@ -94,10 +101,11 @@ func (r *Repository) Flatten() *FlattenRepository {
 			for _, v := range a.Versions {
 				for _, f := range v.Files {
 					flattenRepository.Files = append(flattenRepository.Files, FlattenVersionFile{
-						Filename: f.Name,
-						Version:  v.Name,
-						Artifact: a.Name,
 						Group:    g.Name,
+						Artifact: a.Name,
+						Version:  v.Name,
+						Filename: f.Name,
+						FilePath: f.Path,
 					})
 				}
 			}
@@ -122,6 +130,24 @@ func (r *Repository) GetFileCount() int {
 		}
 	}
 	return r.FileCount
+}
+
+func (r *Repository) ForEach(fn func(group, artifact, version, path string) error) error {
+	for _, g := range r.Groups {
+		for _, a := range g.Artifacts {
+			for _, v := range a.Versions {
+				for _, f := range v.Files {
+					if err := fn(g.Name, a.Name, v.Name, f.Path); err != nil {
+						if err == ErrForEachContinue {
+							continue
+						}
+						return err
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 func (r *Repository) AddVersionFile(groupName, artifactName, versionName, filename, filePath string) {
@@ -267,4 +293,16 @@ func (f *FlattenRepository) GetFileCount() int {
 
 func (f *FlattenRepository) renderFooterCount(itemName string, count int) string {
 	return fmt.Sprintf("Total %s: %d", itemName, count)
+}
+
+func (f *FlattenRepository) ForEach(fn func(group, artifact, version, filePath string) error) error {
+	for _, r := range f.Files {
+		if err := fn(r.Group, r.Artifact, r.Version, r.FilePath); err != nil {
+			if err == ErrForEachContinue {
+				continue
+			}
+			return err
+		}
+	}
+	return nil
 }
