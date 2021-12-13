@@ -13,9 +13,9 @@ to a CODING Artifact Repository easily.
 ### cURL & wget
 
 ```shell
-$ curl -fL 'https://coding-public-generic.pkg.coding.net/registry/disk/carctl/linux/amd64/carctl?version=0.1.0' -o carctl
+$ curl -fL 'https://coding-public-generic.pkg.coding.net/registry/disk/carctl/linux/amd64/carctl?version=latest' -o carctl
 # or wget
-$ wget 'https://coding-public-generic.pkg.coding.net/registry/disk/carctl/linux/amd64/carctl?version=0.1.0' -O carctl
+$ wget 'https://coding-public-generic.pkg.coding.net/registry/disk/carctl/linux/amd64/carctl?version=latest' -O carctl
 
 $ chmod +x carctl
 $ sudo mv carctl /usr/local/bin
