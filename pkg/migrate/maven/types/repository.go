@@ -57,6 +57,9 @@ type (
 
 		// Path: /home/user/.m2/repository/org/springframework/spring-context/4.3.14.RELEASE/spring-context-4.3.14.RELEASE.jar
 		Path string `json:"path,omitempty"`
+
+		// DownloadUrl: fullUrl From Nexus Or Coding, e.g., http://localhost:8081/repository/maven-public/net/sf/json-lib/json-lib/2.2.2/json-lib-2.2.2-jdk15.jar
+		DownloadUrl string `json:"downloadUrl,omitempty"`
 	}
 )
 
@@ -132,12 +135,12 @@ func (r *Repository) GetFileCount() int {
 	return r.FileCount
 }
 
-func (r *Repository) ForEach(fn func(group, artifact, version, path string) error) error {
+func (r *Repository) ForEach(fn func(group, artifact, version, path, downloadUrl string) error) error {
 	for _, g := range r.Groups {
 		for _, a := range g.Artifacts {
 			for _, v := range a.Versions {
 				for _, f := range v.Files {
-					if err := fn(g.Name, a.Name, v.Name, f.Path); err != nil {
+					if err := fn(g.Name, a.Name, v.Name, f.Path, f.DownloadUrl); err != nil {
 						if err == ErrForEachContinue {
 							continue
 						}
@@ -151,6 +154,10 @@ func (r *Repository) ForEach(fn func(group, artifact, version, path string) erro
 }
 
 func (r *Repository) AddVersionFile(groupName, artifactName, versionName, filename, filePath string) {
+	r.AddVersionFileBase(groupName, artifactName, versionName, filename, filePath, "")
+}
+
+func (r *Repository) AddVersionFileBase(groupName, artifactName, versionName, filename, filePath, downloadUrl string) {
 	if !r.HasGroup(groupName) {
 		r.AddGroupName(groupName)
 	}
@@ -168,7 +175,7 @@ func (r *Repository) AddVersionFile(groupName, artifactName, versionName, filena
 						if v.Name == versionName {
 
 							if !v.HasFile(filename) {
-								v.AddFile(filename, filePath)
+								v.AddFile(filename, filePath, downloadUrl)
 							}
 
 						}
@@ -249,8 +256,8 @@ func (v *Version) HasFile(filename string) bool {
 	return false
 }
 
-func (v *Version) AddFile(filename, filePath string) {
-	v.Files = append(v.Files, &VersionFile{Name: filename, Path: filePath})
+func (v *Version) AddFile(filename, filePath, downloadUrl string) {
+	v.Files = append(v.Files, &VersionFile{Name: filename, Path: filePath, DownloadUrl: downloadUrl})
 }
 
 func (f *FlattenRepository) Render(w io.Writer) {

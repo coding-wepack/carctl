@@ -32,6 +32,15 @@ func (c *Client) Get(url string) (resp *http.Response, err error) {
 	return c.Do(req)
 }
 
+func (c *Client) GetWithAuth(url, username, password string) (resp *http.Response, err error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.SetBasicAuth(username, password)
+	return c.Do(req)
+}
+
 func (c *Client) Post(url, contentType string, body io.Reader, username, password string) (resp *http.Response, err error) {
 	req, err := http.NewRequest(http.MethodPost, url, body)
 	if err != nil {

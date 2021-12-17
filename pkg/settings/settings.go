@@ -26,6 +26,9 @@ var (
 	// Src is a file path or an url of the artifacts where you want to migrate.
 	Src string
 
+	// SrcType is the src type, [nexus,coding]
+	SrcType string
+
 	// SrcUsername is username of Src
 	SrcUsername string
 
