@@ -376,3 +376,8 @@ Pushing: Done! [================================================================
 +---------------------------------------------------------+---------------------------------------------------------------------------------------------------------------------------------------+-----------+
 ```
 
+Migrate your nexus maven repository to a remote maven repository:
+
+```shell
+$ carctl migrate maven --src-type=nexus3 --src=http://localhost:8081/repository/maven-test/ --src-username=admin --src-password=admin123 --dst=http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/overridable-maven-migrate/ 
+```
