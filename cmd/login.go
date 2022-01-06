@@ -22,10 +22,10 @@ Authenticate to a remote CODING Artifact Registry.
 
 Examples:
 
-    $ carctl registry login yourteam-maven.pkg.coding.net -u USERNAME -p PASSWORD
+    $ carctl login yourteam-maven.pkg.coding.net -u USERNAME -p PASSWORD
 
     # login by stdin
-    $ echo PASSWORD | carctl registry login yourteam-maven.pkg.coding.net -u USERNAME --password-stdin
+    $ echo PASSWORD | carctl login yourteam-maven.pkg.coding.net -u USERNAME --password-stdin
 `
 
 func newLoginCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
