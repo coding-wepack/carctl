@@ -52,7 +52,7 @@ func newLoginCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 	f := cmd.Flags()
 	f.StringVarP(&settings.Username, "username", "u", "", "registry username")
 	f.StringVarP(&settings.Password, "password", "p", "", "registry password or identity token")
-	f.BoolVarP(&settings.PasswordFromStdin, "password-stdin", "", false, "read password or identity token from stdin")
+	f.BoolVar(&settings.PasswordFromStdin, "password-stdin", false, "read password or identity token from stdin")
 	f.BoolVarP(&settings.Insecure, "insecure", "", false, "allow connections to TLS registry without certs")
 
 	return cmd
