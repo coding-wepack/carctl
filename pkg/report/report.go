@@ -1,12 +1,10 @@
 package types
 
 import (
+	"github.com/olekukonko/tablewriter"
 	"io"
 	"sort"
 	"strconv"
-	"strings"
-
-	"github.com/olekukonko/tablewriter"
 )
 
 type Report struct {
@@ -16,7 +14,6 @@ type Report struct {
 }
 
 type Result struct {
-	// Name: group:artifact:version
 	Name    string `json:"name"`
 	Path    string `json:"path"`
 	Message string `json:"message"`
@@ -34,25 +31,25 @@ func (r *Report) TotalCount() int {
 	return len(r.SucceededResult) + len(r.SkippedResult) + len(r.FailedResult)
 }
 
-func (r *Report) AddSucceededResult(group, artifact, version, path, msg string) {
+func (r *Report) AddSucceededResult(name, path, msg string) {
 	r.SucceededResult = append(r.SucceededResult, Result{
-		Name:    strings.Join([]string{group, artifact, version}, ":"),
+		Name:    name,
 		Path:    path,
 		Message: msg,
 	})
 }
 
-func (r *Report) AddSkippedResult(group, artifact, version, path, msg string) {
+func (r *Report) AddSkippedResult(name, path, msg string) {
 	r.SkippedResult = append(r.SkippedResult, Result{
-		Name:    strings.Join([]string{group, artifact, version}, ":"),
+		Name:    name,
 		Path:    path,
 		Message: msg,
 	})
 }
 
-func (r *Report) AddFailedResult(group, artifact, version, path, msg string) {
+func (r *Report) AddFailedResult(name, path, msg string) {
 	r.FailedResult = append(r.FailedResult, Result{
-		Name:    strings.Join([]string{group, artifact, version}, ":"),
+		Name:    name,
 		Path:    path,
 		Message: msg,
 	})
@@ -69,7 +66,7 @@ func (r *Report) Render(w io.Writer) {
 	}
 
 	table := tablewriter.NewWriter(w)
-	table.SetHeader([]string{"Artifact", "Path", "Result"})
+	table.SetHeader([]string{"Artifact", "Src Path", "Result"})
 	table.SetFooter([]string{
 		"Total", strconv.Itoa(size), "",
 	})

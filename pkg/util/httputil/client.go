@@ -14,7 +14,7 @@ import (
 
 var (
 	defaultHttpClient = &http.Client{
-		Timeout: time.Minute * 5,
+		Timeout: time.Minute * 15,
 	}
 
 	DefaultClient = &Client{client: defaultHttpClient}
@@ -53,6 +53,27 @@ func (c *Client) Post(url, contentType string, body io.Reader, username, passwor
 
 	if contentType != "" {
 		req.Header.Set(http.CanonicalHeaderKey("Content-Type"), contentType)
+	}
+
+	return c.Do(req)
+}
+
+func (c *Client) PostWithHeader(url, contentType string, body io.Reader, username, password string, headers map[string]string) (resp *http.Response, err error) {
+	req, err := http.NewRequest(http.MethodPost, url, body)
+	if err != nil {
+		return nil, err
+	}
+
+	if username != "" && password != "" {
+		req.SetBasicAuth(username, password)
+	}
+
+	if contentType != "" {
+		req.Header.Set(http.CanonicalHeaderKey("Content-Type"), contentType)
+	}
+
+	for key, val := range headers {
+		req.Header.Add(key, val)
 	}
 
 	return c.Do(req)

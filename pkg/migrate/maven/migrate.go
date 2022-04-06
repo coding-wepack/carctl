@@ -24,6 +24,7 @@ import (
 	"e.coding.net/codingcorp/carctl/pkg/log"
 	"e.coding.net/codingcorp/carctl/pkg/log/logfields"
 	"e.coding.net/codingcorp/carctl/pkg/migrate/maven/types"
+	reportutil "e.coding.net/codingcorp/carctl/pkg/report"
 	"e.coding.net/codingcorp/carctl/pkg/settings"
 	"e.coding.net/codingcorp/carctl/pkg/util/fileutil"
 	"e.coding.net/codingcorp/carctl/pkg/util/httputil"
@@ -242,7 +243,7 @@ func migrateRepository(w io.Writer, username, password string) error {
 	log.Info("Begin to migrate ...")
 	start := time.Now()
 
-	report := types.NewReport()
+	report := reportutil.NewReport()
 	if settings.Verbose {
 		defer func() {
 			log.Info("Migrate result:")
@@ -254,17 +255,17 @@ func migrateRepository(w io.Writer, username, password string) error {
 		defer bar.Increment()
 		if err1 := doMigrate(path, username, password); err1 != nil {
 			if err1 == ErrFileConflict {
-				report.AddSkippedResult(group, artifact, version, path, "409 Conflict")
+				report.AddSkippedResult(strings.Join([]string{group, artifact, version}, ":"), path, "409 Conflict")
 				return types.ErrForEachContinue
 			}
 
-			report.AddFailedResult(group, artifact, version, path, err1.Error())
+			report.AddFailedResult(strings.Join([]string{group, artifact, version}, ":"), path, err1.Error())
 
 			if settings.FailFast {
 				return errors.Wrapf(err1, "failed to migrate %s", path)
 			}
 		} else {
-			report.AddSucceededResult(group, artifact, version, path, "Succeeded")
+			report.AddSucceededResult(strings.Join([]string{group, artifact, version}, ":"), path, "Succeeded")
 		}
 
 		return nil
@@ -336,7 +337,7 @@ func migrateNexusRepository(w io.Writer, nexusItemList []nexus.Item, username, p
 	log.Info("Begin to migrate ...")
 	start := time.Now()
 
-	report := types.NewReport()
+	report := reportutil.NewReport()
 	if settings.Verbose {
 		defer func() {
 			log.Info("Migrate result:")
@@ -348,17 +349,17 @@ func migrateNexusRepository(w io.Writer, nexusItemList []nexus.Item, username, p
 		defer bar.Increment()
 		if err1 := doNexusMigrate(path, downloadUrl, username, password); err1 != nil {
 			if err1 == ErrFileConflict {
-				report.AddSkippedResult(group, artifact, version, downloadUrl, "409 Conflict")
+				report.AddSkippedResult(strings.Join([]string{group, artifact, version}, ":"), downloadUrl, "409 Conflict")
 				return types.ErrForEachContinue
 			}
 
-			report.AddFailedResult(group, artifact, version, downloadUrl, err1.Error())
+			report.AddFailedResult(strings.Join([]string{group, artifact, version}, ":"), downloadUrl, err1.Error())
 
 			if settings.FailFast {
 				return errors.Wrapf(err1, "failed to migrate %s", path)
 			}
 		} else {
-			report.AddSucceededResult(group, artifact, version, downloadUrl, "Succeeded")
+			report.AddSucceededResult(strings.Join([]string{group, artifact, version}, ":"), downloadUrl, "Succeeded")
 		}
 
 		return nil

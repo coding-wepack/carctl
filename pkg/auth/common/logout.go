@@ -1,4 +1,4 @@
-package maven
+package common
 
 import (
 	"context"

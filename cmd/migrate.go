@@ -15,6 +15,8 @@ This command migrates artifacts from local or remote to a CODING Artifact Regist
 The migrate argument must be an artifact type, available now:
 
 - maven (Default)
+- composer 
+- pypi 
 - npm (TODO)
 - generic (TODO)
 - docker (TODO)
@@ -46,6 +48,8 @@ func newMigrateCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 	// add subcommands
 	cmd.AddCommand(
 		newMigrateMavenCmd(cfg, out),
+		newMigratePypiCmd(cfg, out),
+		newMigrateComposerCmd(cfg, out),
 	)
 
 	return cmd

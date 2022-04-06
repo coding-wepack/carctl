@@ -2,11 +2,11 @@ package registry
 
 import (
 	"context"
+	"e.coding.net/codingcorp/carctl/pkg/auth/common"
 	"fmt"
 	"io"
 
 	"e.coding.net/codingcorp/carctl/pkg/auth"
-	"e.coding.net/codingcorp/carctl/pkg/auth/maven"
 	"e.coding.net/codingcorp/carctl/pkg/config"
 	"e.coding.net/codingcorp/carctl/pkg/constants"
 	"e.coding.net/codingcorp/carctl/pkg/util/artutil"
@@ -170,8 +170,8 @@ func getAuthorizer(host, configFilePath string) (auth.Client, error) {
 	}
 
 	switch artType {
-	case constants.TypeMaven:
-		return maven.NewClient(configFilePath)
+	case constants.TypeMaven, constants.TypeComposer, constants.TypePypi:
+		return common.NewClient(configFilePath)
 	default:
 		return nil, errors.New("unsupported artifact type")
 	}
