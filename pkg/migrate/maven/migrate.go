@@ -1,7 +1,6 @@
 package maven
 
 import (
-	"e.coding.net/codingcorp/carctl/pkg/migrate/maven/types/nexus"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -24,6 +23,7 @@ import (
 	"e.coding.net/codingcorp/carctl/pkg/log"
 	"e.coding.net/codingcorp/carctl/pkg/log/logfields"
 	"e.coding.net/codingcorp/carctl/pkg/migrate/maven/types"
+	"e.coding.net/codingcorp/carctl/pkg/migrate/maven/types/nexus"
 	reportutil "e.coding.net/codingcorp/carctl/pkg/report"
 	"e.coding.net/codingcorp/carctl/pkg/settings"
 	"e.coding.net/codingcorp/carctl/pkg/util/fileutil"
@@ -43,15 +43,20 @@ func Migrate(cfg *action.Configuration, out io.Writer) error {
 		settings.Src = defaultMavenRepositoryPath()
 	}
 
-	srcUrl, err := url.Parse(settings.Src)
-	// 不带 http 或 https 的认为不是 url
-	if err != nil || srcUrl.Scheme == "" {
-		log.Info("src is not url, start to stat ...", logfields.String("src", settings.Src))
-		if settings.Verbose {
-			log.Warn("Can't parse with error", logfields.Error(err))
-		}
+	isLocalPath := isLocalRepository(settings.Src)
+	if isLocalPath {
+		// local repository
 		return MigrateFromDisk(cfg, out)
 	} else {
+		// remote repository
+		srcUrl, err := url.Parse(settings.Src)
+		if err != nil {
+			log.Warn("Invalid src url", logfields.String("src", settings.Src), logfields.Error(err))
+			return errors.Wrap(err, "invalid src url")
+		}
+		if srcUrl != nil && srcUrl.Scheme == "" {
+			srcUrl.Scheme = "http"
+		}
 		return MigrateFromUrl(cfg, out, srcUrl)
 	}
 }
@@ -537,4 +542,11 @@ func getPushUrl(filePath string) string {
 
 func defaultMavenRepositoryPath() string {
 	return filepath.Join(config.GetHomeDir(), ".m2", "repository")
+}
+
+func isLocalRepository(src string) bool {
+	if strings.HasPrefix(src, "http") {
+		return false
+	}
+	return true
 }

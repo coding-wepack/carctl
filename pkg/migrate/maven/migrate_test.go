@@ -28,6 +28,18 @@ func TestMigrate(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestMigrateWin(t *testing.T) {
+	settings.Verbose = true
+	settings.MaxFiles = -1
+	settings.Src = `E:\\mvnrepo\\log4j\\`
+	settings.Dst = "http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/central"
+
+	log.SetDebug()
+
+	isLocalPath := isLocalRepository(settings.Src)
+	assert.True(t, isLocalPath)
+}
+
 func TestMigrateFromNexus(t *testing.T) {
 	settings.Verbose = true
 	settings.MaxFiles = -1
