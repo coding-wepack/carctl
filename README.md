@@ -7,6 +7,8 @@ The full name of `carctl` is *CODING Artifacts Repository Control*.
 Such as `migrate`, you can migrate artifacts from a local directory or a remote url
 to a CODING Artifact Repository easily.
 
+`migrate` now supports `maven`、`pypi` and `composer`.
+
 
 ## Installation
 
@@ -379,5 +381,5 @@ Pushing: Done! [================================================================
 Migrate your nexus maven repository to a remote maven repository:
 
 ```shell
-$ carctl migrate maven --src-type=nexus3 --src=http://localhost:8081/repository/maven-test/ --src-username=admin --src-password=admin123 --dst=http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/overridable-maven-migrate/ 
+$ carctl migrate maven --src-type=nexus --src=http://localhost:8081/repository/maven-test/ --src-username=admin --src-password=admin123 --dst=http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/overridable-maven-migrate/ 
 ```

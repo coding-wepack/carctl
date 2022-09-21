@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -179,11 +178,31 @@ func getFileListFromNexus(scheme, nexusHost, repository, continuationToken strin
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to get components: %s", apiUrl)
 	}
+	defer ioutils.QuiteClose(resp.Body)
+
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.Errorf("failed to get components: %s, status: %s", apiUrl, resp.Status)
+		// TODO: 优化的优雅一点，临时修复比较粗糙
+		// 如果状态码为 404，则尝试兼容老版本的 nexus3.x，API 是带有 /nexus 前缀的
+		if resp.StatusCode == http.StatusNotFound {
+			apiUrl = fmt.Sprintf("%s://%s/nexus/service/rest/v1/assets?repository=%s", scheme, nexusHost, repository)
+			if continuationToken != "" {
+				apiUrl = fmt.Sprintf("%s&continuationToken=%s", apiUrl, continuationToken)
+			}
+			resp, err = httputil.DefaultClient.GetWithAuth(apiUrl, settings.SrcUsername, settings.SrcPassword)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to get components: %s", apiUrl)
+			}
+			defer ioutils.QuiteClose(resp.Body)
+
+			if resp.StatusCode != http.StatusOK {
+				return nil, errors.Errorf("failed to get components: %s, status: %s", apiUrl, resp.Status)
+			}
+		} else {
+			return nil, errors.Errorf("failed to get components: %s, status: %s", apiUrl, resp.Status)
+		}
 	}
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to read resp: %s", apiUrl)
 	}

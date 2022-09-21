@@ -1,6 +1,15 @@
 package composer
 
 import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
 	"e.coding.net/codingcorp/carctl/pkg/action"
 	"e.coding.net/codingcorp/carctl/pkg/log"
 	"e.coding.net/codingcorp/carctl/pkg/log/logfields"
@@ -10,17 +19,9 @@ import (
 	"e.coding.net/codingcorp/carctl/pkg/settings"
 	"e.coding.net/codingcorp/carctl/pkg/util/httputil"
 	"e.coding.net/codingcorp/carctl/pkg/util/ioutils"
-	"encoding/json"
-	"fmt"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb/v7"
 	"github.com/vbauerster/mpb/v7/decor"
-	"io"
-	"io/ioutil"
-	"net/http"
-	"net/url"
-	"strings"
-	"time"
 )
 
 var (
@@ -250,10 +251,27 @@ func getFileListFromNexus(scheme, nexusHost, repository, continuationToken strin
 		return nil, errors.Wrapf(err, "failed to get components: %s", apiUrl)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.Errorf("failed to get components: %s, status: %s", apiUrl, resp.Status)
+		// 如果状态码为 404，则尝试兼容老版本的 nexus3.x，API 是带有 /nexus 前缀的
+		if resp.StatusCode == http.StatusNotFound {
+			apiUrl = fmt.Sprintf("%s://%s/nexus/service/rest/v1/assets?repository=%s", scheme, nexusHost, repository)
+			if continuationToken != "" {
+				apiUrl = fmt.Sprintf("%s&continuationToken=%s", apiUrl, continuationToken)
+			}
+			resp, err = httputil.DefaultClient.GetWithAuth(apiUrl, settings.SrcUsername, settings.SrcPassword)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to get components: %s", apiUrl)
+			}
+			defer ioutils.QuiteClose(resp.Body)
+
+			if resp.StatusCode != http.StatusOK {
+				return nil, errors.Errorf("failed to get components: %s, status: %s", apiUrl, resp.Status)
+			}
+		} else {
+			return nil, errors.Errorf("failed to get components: %s, status: %s", apiUrl, resp.Status)
+		}
 	}
 
-	bodyBytes, err := ioutil.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to read resp: %s", apiUrl)
 	}
@@ -266,7 +284,7 @@ func getFileListFromNexus(scheme, nexusHost, repository, continuationToken strin
 	return getComponentsResp, nil
 }
 
-//Parse Package Info
+// Parse Package Info
 func getComposerList(downloadUrl string) (composerList []*nexus.ComposerItem, err error) {
 
 	resp, err := httputil.DefaultClient.GetWithAuth(downloadUrl, settings.SrcUsername, settings.SrcPassword)
