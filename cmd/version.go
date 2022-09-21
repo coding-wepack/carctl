@@ -7,14 +7,14 @@ import (
 )
 
 var (
-	Version = "0.1.3"
+	Version = "0.1.5"
 )
 
 func newVersionCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "version",
 		Short:   "Print the CLI version",
-		Example: "camigrater version",
+		Example: "carctl version",
 		Run: func(cmd *cobra.Command, args []string) {
 			fmt.Println(Version)
 		},
