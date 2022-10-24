@@ -120,7 +120,7 @@ Removing login credentials for team-maven.pkg.coding.net
 Migrate your maven repository to a remote maven repository:
 
 ```shell
-$ carctl migrate maven --src=/home/juan/.m2/swagger-repository --dst=http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/overridable-maven-migrate/   
+$ carctl migrate maven --src=/home/juan/.m2/swagger-repository --dst=http://codingcorp-maven.pkg.coding.com/repository/registry/overridable-maven-migrate/   
 2021-12-13 16:35:30.067	INFO	Stat source repository ...
 2021-12-13 16:35:30.067	INFO	Check authorization of the registry
 2021-12-13 16:35:30.067	INFO	Scanning repository ...
@@ -133,10 +133,10 @@ Pushing: Done! [================================================================
 You can use `-v` or `--verbose` flag to see more info:
 
 ```shell
-$ carctl migrate maven --src=/home/juan/.m2/swagger-repository --dst=http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/overridable-maven-migrate/ -v
+$ carctl migrate maven --src=/home/juan/.m2/swagger-repository --dst=http://codingcorp-maven.pkg.coding.com/repository/registry/overridable-maven-migrate/ -v
 2021-12-13 16:33:58.526	INFO	Stat source repository ...
 2021-12-13 16:33:58.529	INFO	Check authorization of the registry
-2021-12-13 16:33:58.531	DEBUG	Auth config	{"host": "codingcorp-maven.pkg.nh4ivfk.dev.coding.io", "username": "coding-coding", "password": "coding123"}
+2021-12-13 16:33:58.531	DEBUG	Auth config	{"host": "codingcorp-maven.pkg.coding.com", "username": "username", "password": "password"}
 2021-12-13 16:33:58.532	INFO	Scanning repository ...
 2021-12-13 16:33:58.532	INFO	Successfully to scan the repository	{"groups": 3, "artifacts": 16, "versions": 16, "files": 56}
 2021-12-13 16:33:58.532	INFO	Repository Info:
@@ -383,5 +383,5 @@ Pushing: Done! [================================================================
 Migrate your nexus maven repository to a remote maven repository:
 
 ```shell
-$ carctl migrate maven --src-type=nexus --src=http://localhost:8081/repository/maven-test/ --src-username=admin --src-password=admin123 --dst=http://codingcorp-maven.pkg.nh4ivfk.dev.coding.io/repository/registry/overridable-maven-migrate/ 
+$ carctl migrate maven --src-type=nexus --src=http://localhost:8081/repository/maven-test/ --src-username=admin --src-password=admin123 --dst=http://codingcorp-maven.pkg.coding.com/repository/registry/overridable-maven-migrate/ 
 ```

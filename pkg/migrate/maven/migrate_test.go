@@ -45,8 +45,8 @@ func TestMigrateFromNexus(t *testing.T) {
 	settings.MaxFiles = -1
 	settings.Src = "http://localhost:8081/repository/maven-test/"
 	settings.SrcUsername = "admin"
-	settings.SrcPassword = "coding123"
-	settings.Dst = "http://wepack-maven.pkg.coding.9.134.115.120.nip.io/repository/primary/maven-test"
+	settings.SrcPassword = "admin"
+	settings.Dst = "http://wepack-maven.pkg.coding.127.0.0.1.nip.io/repository/primary/maven-test"
 
 	log.SetDebug()
 
