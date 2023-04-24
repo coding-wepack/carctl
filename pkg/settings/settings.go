@@ -1,6 +1,7 @@
 package settings
 
 import (
+	"strings"
 	"time"
 )
 
@@ -47,3 +48,11 @@ var (
 	// MaxFiles are maximum files which would be uploaded
 	MaxFiles int
 )
+
+func GetSrc() string {
+	return strings.Trim(Src, "/")
+}
+
+func GetDst() string {
+	return strings.Trim(Dst, "/")
+}

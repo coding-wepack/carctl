@@ -39,7 +39,7 @@ func newMigrateMavenCmd(cfg *action.Configuration, out io.Writer) *cobra.Command
 
 	// required flags
 	cmd.Flags().StringVar(&settings.Src, "src", "", `e.g., --src="file://~/.m2/repository", or --src="https://demo-maven.pkg.coding.net/repository/test-project/src-repo/"`)
-	cmd.Flags().StringVar(&settings.SrcType, "src-type", "nexus", "e.g., --src-type=nexus, or --src-type=coding")
+	cmd.Flags().StringVar(&settings.SrcType, "src-type", "nexus", "e.g., --src-type=nexus, or --src-type=jfrog")
 	cmd.Flags().StringVar(&settings.SrcUsername, "src-username", "", "e.g., --src-username=test")
 	cmd.Flags().StringVar(&settings.SrcPassword, "src-password", "", "e.g., --src-password=test123")
 	cmd.Flags().StringVar(&settings.Dst, "dst", "", `e.g., --dst="https://demo-maven.pkg.coding.net/repository/test-project/dst-repo/"`)

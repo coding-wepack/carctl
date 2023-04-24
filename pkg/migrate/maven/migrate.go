@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"e.coding.net/codingcorp/carctl/pkg/remote"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb/v7"
 	"github.com/vbauerster/mpb/v7/decor"
@@ -110,6 +111,8 @@ func MigrateFromUrl(cfg *action.Configuration, out io.Writer, srcUrl *url.URL) e
 	switch settings.SrcType {
 	case "nexus":
 		return MigrateFromNexus(cfg, out, srcUrl)
+	case "jfrog":
+		return MigrateFromJfrog(cfg, out, srcUrl)
 	default:
 		return errors.Errorf("This src-type [%s] is not supported", settings.SrcType)
 	}
@@ -161,6 +164,41 @@ func MigrateFromNexus(cfg *action.Configuration, out io.Writer, nexusUrl *url.UR
 	}
 
 	if err = migrateNexusRepository(out, nexusItemList, authConfig.Username, authConfig.Password); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func MigrateFromJfrog(cfg *action.Configuration, out io.Writer, jfrogUrl *url.URL) error {
+	log.Infof("Get file list from source repository [%s] ...", settings.Src)
+	// 获取仓库名称
+	urlPathStrs := strings.Split(strings.Trim(jfrogUrl.Path, "/"), "/")
+	repository := urlPathStrs[1]
+
+	filesInfo, err := remote.FindFileListFromJfrog(jfrogUrl, repository)
+
+	log.Info("Check authorization of the registry")
+	configFile, err := cfg.RegistryClient.ConfigFile()
+	if err != nil {
+		return errors.Wrap(err, "failed to get config file")
+	}
+
+	has, authConfig, err := configFile.GetAuthConfig(settings.Dst)
+	if err != nil {
+		return errors.Wrap(err, "failed to get registry authorization info")
+	}
+	if !has {
+		return errors.New("Unauthorized: authentication required. Maybe you haven't logged in before.")
+	}
+
+	if settings.Verbose {
+		log.Debug("Auth config", logfields.String("host", authConfig.ServerAddress),
+			logfields.String("username", authConfig.Username),
+			logfields.String("password", authConfig.Password))
+	}
+
+	if err = migrateJfrogRepository(out, filesInfo.Res, authConfig.Username, authConfig.Password); err != nil {
 		return err
 	}
 
@@ -290,6 +328,100 @@ func migrateRepository(w io.Writer, username, password string) error {
 			}
 		} else {
 			report.AddSucceededResult(strings.Join([]string{group, artifact, version}, ":"), path, "Succeeded")
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	// wait for our bar to complete and flush
+	p.Wait()
+
+	log.Info("End to migrate.",
+		logfields.Duration("duration", time.Now().Sub(start)),
+		logfields.Int("succeededCount", len(report.SucceededResult)),
+		logfields.Int("skippedCount", len(report.SkippedResult)),
+		logfields.Int("failedCount", len(report.FailedResult)))
+
+	return nil
+}
+
+func migrateJfrogRepository(w io.Writer, jfrogFiles []remote.JfrogFile, username, password string) error {
+	log.Info("Scanning jfrog repository ...")
+
+	repository, err := GetRepositoryFromJfrogFile(settings.Src, jfrogFiles)
+	if err != nil {
+		return err
+	}
+	flattenRepository := repository.Flatten()
+	log.Info("Successfully to scan the repository",
+		logfields.Int("groups", flattenRepository.GetGroupCount()),
+		logfields.Int("artifacts", flattenRepository.GetArtifactCount()),
+		logfields.Int("versions", flattenRepository.GetVersionCount()),
+		logfields.Int("files", flattenRepository.GetFileCount()))
+	if flattenRepository.GetFileCount() == 0 {
+		log.Warn("no files found, no need to migrate")
+		return nil
+	}
+	if settings.Verbose {
+		log.Info("Repository Info:")
+		repository.Render(w)
+	}
+
+	// Progress Bar
+	// initialize progress container, with custom width
+	p := mpb.New(mpb.WithWidth(80))
+	total := flattenRepository.GetFileCount()
+	const pbName = "Pushing:"
+	// adding a single bar, which will inherit container's width
+	bar := p.Add(
+		int64(total),
+		mpb.NewBarFiller(mpb.BarStyle()),
+		mpb.PrependDecorators(
+			// display our name with one space on the right
+			decor.Name(pbName, decor.WC{W: len(pbName) + 1, C: decor.DidentRight}),
+			// replace ETA decorator with "done" message, OnComplete event
+			decor.OnComplete(
+				decor.AverageETA(decor.ET_STYLE_GO, decor.WC{W: 4}), "Done!",
+			),
+		),
+		mpb.AppendDecorators(
+			// counter
+			decor.Counters(0, "%d / %d  "),
+			// percentage
+			decor.Percentage(),
+			// average
+			// mpb.AppendDecorators(decor.AverageSpeed(decor.UnitKiB, "  % .1f")),
+		),
+	)
+
+	log.Info("Begin to migrate ...")
+	start := time.Now()
+
+	report := reportutil.NewReport()
+	if settings.Verbose {
+		defer func() {
+			log.Info("Migrate result:")
+			report.Render(w)
+		}()
+	}
+
+	if err := repository.ForEach(func(group, artifact, version, path, downloadUrl string) error {
+		defer bar.Increment()
+		if err1 := doNexusMigrate(path, downloadUrl, username, password); err1 != nil {
+			if err1 == ErrFileConflict {
+				report.AddSkippedResult(strings.Join([]string{group, artifact, version}, ":"), downloadUrl, "409 Conflict")
+				return types.ErrForEachContinue
+			}
+
+			report.AddFailedResult(strings.Join([]string{group, artifact, version}, ":"), downloadUrl, err1.Error())
+
+			if settings.FailFast {
+				return errors.Wrapf(err1, "failed to migrate %s", path)
+			}
+		} else {
+			report.AddSucceededResult(strings.Join([]string{group, artifact, version}, ":"), downloadUrl, "Succeeded")
 		}
 
 		return nil
@@ -444,7 +576,7 @@ func doNexusMigrate(path, downloadUrl, username, password string) error {
 			// 	logfields.String("file", file))
 			return ErrFileConflict
 		}
-		return errors.Errorf("got an unexpected response status: %s", resp.Status)
+		return errors.Errorf("got an push unexpected response status: %s", resp.Status)
 	}
 
 	return nil
@@ -487,6 +619,23 @@ func GetRepository(repositoryPath string, maxFiles int) (repository *types.Repos
 		return nil, errors.Wrap(err, "failed to walk repository")
 	}
 
+	return
+}
+
+func GetRepositoryFromJfrogFile(repositoryUrl string, jfrogFiles []remote.JfrogFile) (repository *types.Repository, err error) {
+	var fileCount int
+	repository = &types.Repository{Path: repositoryUrl}
+	for _, file := range jfrogFiles {
+		subPath := fmt.Sprintf("%s/%s", file.Path, file.Name)
+		groupName, artifact, version, filename, err := getArtInfoFromSubPath(subPath)
+		if err != nil {
+			log.Warnf("get maven info failed: %s", err.Error())
+			continue
+		}
+		downloadUrl := fmt.Sprintf("%s/%s", settings.GetSrc(), subPath)
+		repository.AddVersionFileBase(groupName, artifact, version, filename, subPath, downloadUrl)
+		fileCount++
+	}
 	return
 }
 
@@ -537,7 +686,7 @@ func getArtInfoFromSubPath(subPath string) (groupName, artifact, version, filena
 	subPathChunks := strings.Split(subPath, "/")
 	size := len(subPathChunks)
 	if size < 3 {
-		return "", "", "", "", errors.New("invalid path")
+		return "", "", "", "", errors.Errorf("invalid maven path: %s", subPath)
 	}
 	// 如果以 maven-metadata.xml 结尾，但 path 中不包含 SNAPSHOT 字样，此文件为 version 上层文件夹路径下
 	// e.g. org/kohsuke/stapler/json-lib/maven-metadata.xml
