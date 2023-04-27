@@ -282,7 +282,7 @@ func migrateJfrogRepository(w io.Writer, jfrogUrl *url.URL, jfrogFileList []remo
 		),
 	)
 
-	log.Info("Begin to migrate ...")
+	log.Info("Begin to migrate docker artifacts ...")
 	start := time.Now()
 
 	report := reportutil.NewReport()

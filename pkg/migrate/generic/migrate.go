@@ -134,6 +134,10 @@ func MigrateFromJfrog(cfg *action.Configuration, out io.Writer, jfrogUrl *url.UR
 			logfields.String("password", authConfig.Password))
 	}
 
+	if len(filesInfo.Res) == 0 {
+		return errors.Errorf("generic repository: %s file not found, please check your repository or command", repository)
+	}
+
 	if err = migrateJfrogRepository(out, filesInfo.Res, authConfig.Username, authConfig.Password); err != nil {
 		return err
 	}
@@ -190,7 +194,7 @@ func migrateRepository(w io.Writer, username, password string) error {
 		),
 	)
 
-	log.Info("Begin to migrate ...")
+	log.Info("Begin to migrate generic artifacts ...")
 	start := time.Now()
 
 	report := reportutil.NewReport()

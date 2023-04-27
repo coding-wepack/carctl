@@ -177,6 +177,9 @@ func MigrateFromJfrog(cfg *action.Configuration, out io.Writer, jfrogUrl *url.UR
 	repository := urlPathStrs[1]
 
 	filesInfo, err := remote.FindFileListFromJfrog(jfrogUrl, repository)
+	if err != nil {
+		return errors.Wrap(err, "failed to get file list")
+	}
 
 	log.Info("Check authorization of the registry")
 	configFile, err := cfg.RegistryClient.ConfigFile()
@@ -396,7 +399,7 @@ func migrateJfrogRepository(w io.Writer, jfrogFiles []remote.JfrogFile, username
 		),
 	)
 
-	log.Info("Begin to migrate ...")
+	log.Info("Begin to migrate maven artifacts ...")
 	start := time.Now()
 
 	report := reportutil.NewReport()

@@ -156,6 +156,9 @@ func MigrateFromJfrog(cfg *action.Configuration, out io.Writer, jfrogUrl *url.UR
 			files = append(files, f)
 		}
 	}
+	if len(files) == 0 {
+		return errors.Errorf("npm repository: %s file not found, please check your repository or command parameters", repository)
+	}
 	if err = migrateJfrogRepository(out, files, authConfig.Username, authConfig.Password); err != nil {
 		return err
 	}
@@ -284,7 +287,7 @@ func migrateJfrogRepository(w io.Writer, jfrogFileList []remote.JfrogFile, usern
 		),
 	)
 
-	log.Info("Begin to migrate ...")
+	log.Info("Begin to migrate npm artifacts ...")
 	start := time.Now()
 
 	report := reportutil.NewReport()

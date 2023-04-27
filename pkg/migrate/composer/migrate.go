@@ -160,7 +160,7 @@ func migrateNexusRepository(w io.Writer, nexusItemList []nexus.Item, username, p
 		),
 	)
 
-	log.Info("Begin to migrate ...")
+	log.Info("Begin to migrate composer artifacts ...")
 	start := time.Now()
 
 	report := reportutil.NewReport()
