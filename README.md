@@ -7,7 +7,7 @@ The full name of `carctl` is *CODING Artifacts Repository Control*.
 Such as `migrate`, you can migrate artifacts from a local directory or a remote url
 to a CODING Artifact Repository easily.
 
-`migrate` now supports `maven`、`pypi` and `composer`.
+`migrate` now supports `generic`、`docker`、`maven`、`npm`、`pypi` and `composer`.
 
 
 ## Installation
