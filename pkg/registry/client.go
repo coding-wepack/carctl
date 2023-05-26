@@ -2,9 +2,10 @@ package registry
 
 import (
 	"context"
-	"e.coding.net/codingcorp/carctl/pkg/auth/common"
 	"fmt"
 	"io"
+
+	"e.coding.net/codingcorp/carctl/pkg/auth/common"
 
 	"e.coding.net/codingcorp/carctl/pkg/auth"
 	"e.coding.net/codingcorp/carctl/pkg/config"
@@ -170,7 +171,7 @@ func getAuthorizer(host, configFilePath string) (auth.Client, error) {
 	}
 
 	switch artType {
-	case constants.TypeMaven, constants.TypeComposer, constants.TypePypi:
+	case constants.TypeGeneric, constants.TypeDocker, constants.TypeMaven, constants.TypeNpm, constants.TypeComposer, constants.TypePypi:
 		return common.NewClient(configFilePath)
 	default:
 		return nil, errors.New("unsupported artifact type")

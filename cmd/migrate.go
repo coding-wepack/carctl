@@ -17,9 +17,9 @@ The migrate argument must be an artifact type, available now:
 - maven (Default)
 - composer 
 - pypi 
-- npm (TODO)
-- generic (TODO)
-- docker (TODO)
+- npm
+- generic
+- docker
 - helm (TODO)
 
 Examples:
@@ -47,7 +47,10 @@ func newMigrateCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 
 	// add subcommands
 	cmd.AddCommand(
+		newMigrateGenericCmd(cfg, out),
+		newMigrateDockerCmd(cfg, out),
 		newMigrateMavenCmd(cfg, out),
+		newMigrateNpmCmd(cfg, out),
 		newMigratePypiCmd(cfg, out),
 		newMigrateComposerCmd(cfg, out),
 	)

@@ -1,10 +1,11 @@
 package types
 
 import (
-	"github.com/olekukonko/tablewriter"
 	"io"
 	"sort"
 	"strconv"
+
+	"github.com/olekukonko/tablewriter"
 )
 
 type Report struct {
