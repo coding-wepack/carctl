@@ -100,6 +100,18 @@ func MigrateFromJfrog(cfg *config.AuthConfig, out io.Writer, jfrogUrl *url.URL, 
 	if err != nil {
 		return errors.Wrap(err, "failed to get file list")
 	}
+
+	if len(settings.Prefix) != 0 {
+		// 过滤匹配 settings.Prefix 的制品
+		var matchFiles []remote.JfrogFile
+		for _, f := range filesInfo.Res {
+			if strings.HasPrefix(f.GetFilePath(), settings.Prefix) {
+				matchFiles = append(matchFiles, f)
+			}
+		}
+		filesInfo.Res = matchFiles
+	}
+
 	var files []remote.JfrogFile
 	for _, f := range filesInfo.Res {
 		if isNeedMigrate(f.GetFilePath(), exists) {

@@ -55,6 +55,7 @@ func newMigrateGenericCmd(cfg *action.Configuration, out io.Writer) *cobra.Comma
 	cmd.Flags().BoolVar(&settings.FailFast, "failFast", false, "exit directly if there was an error found during migration")
 	cmd.Flags().IntVar(&settings.MaxFiles, "max-files", -1, "Maximum number of files to be pushed. Negative number means unlimited.")
 	cmd.Flags().BoolVarP(&settings.Force, "force", "f", false, "whether push is forced. if exists does no push.")
+	cmd.Flags().StringVar(&settings.Prefix, "prefix", "", "only name that match the prefix are migrated.")
 
 	// TODO: --max-arts
 	// TODO: --generate-sha1

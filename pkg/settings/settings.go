@@ -50,6 +50,9 @@ var (
 
 	// Force controls whether push is forced. if exists does no push.
 	Force bool
+
+	// Prefix use to filter generic artifacts.
+	Prefix string
 )
 
 func GetSrcWithoutSlash() string {
