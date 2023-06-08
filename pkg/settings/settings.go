@@ -47,12 +47,23 @@ var (
 
 	// MaxFiles are maximum files which would be uploaded
 	MaxFiles int
+
+	// Force controls whether push is forced. if exists does no push.
+	Force bool
 )
 
-func GetSrc() string {
+func GetSrcWithoutSlash() string {
 	return strings.Trim(Src, "/")
 }
 
-func GetDst() string {
+func GetDstWithoutSlash() string {
 	return strings.Trim(Dst, "/")
+}
+
+func GetSrcHasSubSlash() string {
+	return GetSrcWithoutSlash() + "/"
+}
+
+func GetDstHasSubSlash() string {
+	return GetDstWithoutSlash() + "/"
 }

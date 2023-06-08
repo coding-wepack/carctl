@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"e.coding.net/codingcorp/carctl/pkg/action"
+	"e.coding.net/codingcorp/carctl/pkg/config"
 	"e.coding.net/codingcorp/carctl/pkg/log"
 	"e.coding.net/codingcorp/carctl/pkg/log/logfields"
 	"e.coding.net/codingcorp/carctl/pkg/migrate/composer/types"
@@ -29,6 +30,28 @@ var (
 )
 
 func Migrate(cfg *action.Configuration, out io.Writer) error {
+	log.Info("Check authorization of the registry")
+	configFile, err := cfg.RegistryClient.ConfigFile()
+	if err != nil {
+		return errors.Wrap(err, "failed to get config file")
+	}
+
+	has, authConfig, err := configFile.GetAuthConfig(settings.Dst)
+	if err != nil {
+		return errors.Wrap(err, "failed to get registry authorization info")
+	}
+	if !has {
+		return errors.New("Unauthorized: authentication required. Maybe you haven't logged in before.")
+	}
+
+	if settings.Verbose {
+		log.Debug("Auth config", logfields.String("host", authConfig.ServerAddress),
+			logfields.String("username", authConfig.Username),
+			logfields.String("password", authConfig.Password))
+	}
+
+	// TODO:迁移前检查制品是否已经存在，存在则不再执行迁移
+
 	srcUrl, err := url.Parse(settings.Src)
 	if err != nil || srcUrl.Scheme == "" {
 		log.Info("only support migrate from nexus...", logfields.String("src", settings.Src))
@@ -37,11 +60,11 @@ func Migrate(cfg *action.Configuration, out io.Writer) error {
 		}
 		return errors.New("source repository is not a directory")
 	} else {
-		return MigrateFromUrl(cfg, out, srcUrl)
+		return MigrateFromUrl(&authConfig, out, srcUrl)
 	}
 }
 
-func MigrateFromUrl(cfg *action.Configuration, out io.Writer, srcUrl *url.URL) error {
+func MigrateFromUrl(cfg *config.AuthConfig, out io.Writer, srcUrl *url.URL) error {
 	// 默认为 nexus
 	if settings.SrcType == "" {
 		settings.SrcType = "nexus"
@@ -54,7 +77,7 @@ func MigrateFromUrl(cfg *action.Configuration, out io.Writer, srcUrl *url.URL) e
 	}
 }
 
-func MigrateFromNexus(cfg *action.Configuration, out io.Writer, nexusUrl *url.URL) error {
+func MigrateFromNexus(cfg *config.AuthConfig, out io.Writer, nexusUrl *url.URL) error {
 	log.Infof("Get file list from source repository [%s] ...", settings.Src)
 
 	nexusScheme := nexusUrl.Scheme
@@ -78,27 +101,7 @@ func MigrateFromNexus(cfg *action.Configuration, out io.Writer, nexusUrl *url.UR
 		continuationToken = resp.ContinuationToken
 	}
 
-	log.Info("Check authorization of the registry")
-	configFile, err := cfg.RegistryClient.ConfigFile()
-	if err != nil {
-		return errors.Wrap(err, "failed to get config file")
-	}
-
-	has, authConfig, err := configFile.GetAuthConfig(settings.Dst)
-	if err != nil {
-		return errors.Wrap(err, "failed to get registry authorization info")
-	}
-	if !has {
-		return errors.New("Unauthorized: authentication required. Maybe you haven't logged in before.")
-	}
-
-	if settings.Verbose {
-		log.Debug("Auth config", logfields.String("host", authConfig.ServerAddress),
-			logfields.String("username", authConfig.Username),
-			logfields.String("password", authConfig.Password))
-	}
-
-	if err = migrateNexusRepository(out, nexusItemList, authConfig.Username, authConfig.Password); err != nil {
+	if err := migrateNexusRepository(out, nexusItemList, cfg.Username, cfg.Password); err != nil {
 		return err
 	}
 
@@ -236,7 +239,7 @@ func doNexusMigrate(path, version, downloadUrl, username, password string) error
 }
 
 func getPushUrl(version string) string {
-	return strings.TrimSuffix(settings.Dst, "/") + "?version=" + version
+	return settings.GetDstWithoutSlash() + "?version=" + version
 }
 
 // getFileListFromNexus 　getFileListFromNexus, result contains zip and project.json

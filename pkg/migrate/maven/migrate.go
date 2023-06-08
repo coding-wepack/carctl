@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"e.coding.net/codingcorp/carctl/pkg/api"
 	"e.coding.net/codingcorp/carctl/pkg/remote"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb/v7"
@@ -43,39 +44,6 @@ func Migrate(cfg *action.Configuration, out io.Writer) error {
 		settings.Src = defaultMavenRepositoryPath()
 	}
 
-	isLocalPath := isLocalRepository(settings.Src)
-	if isLocalPath {
-		// local repository
-		return MigrateFromDisk(cfg, out)
-	} else {
-		// remote repository
-		srcUrl, err := url.Parse(settings.Src)
-		if err != nil {
-			log.Warn("Invalid src url", logfields.String("src", settings.Src), logfields.Error(err))
-			return errors.Wrap(err, "invalid src url")
-		}
-		if srcUrl != nil && srcUrl.Scheme == "" {
-			srcUrl.Scheme = "http"
-		}
-		return MigrateFromUrl(cfg, out, srcUrl)
-	}
-}
-
-func MigrateFromDisk(cfg *action.Configuration, out io.Writer) error {
-	log.Info("Stat source repository ...")
-
-	repositoryFileInfo, err := os.Stat(settings.Src)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			log.Warn("source repository not found", logfields.String("path", settings.Src))
-			return nil
-		}
-		return err
-	}
-	if !repositoryFileInfo.IsDir() {
-		return errors.New("source repository is not a directory")
-	}
-
 	log.Info("Check authorization of the registry")
 	configFile, err := cfg.RegistryClient.ConfigFile()
 	if err != nil {
@@ -96,29 +64,71 @@ func MigrateFromDisk(cfg *action.Configuration, out io.Writer) error {
 			logfields.String("password", authConfig.Password))
 	}
 
-	if err = migrateRepository(out, authConfig.Username, authConfig.Password); err != nil {
+	// exists artifacts
+	var exists map[string]bool
+	if !settings.Force {
+		exists, err = api.FindDstRepoArtifactsName(&authConfig, settings.GetDstWithoutSlash(), "maven")
+		if err != nil {
+			return errors.Wrap(err, "failed to find dst repo exists artifacts")
+		}
+	}
+
+	isLocalPath := isLocalRepository(settings.Src)
+	if isLocalPath {
+		// local repository
+		return MigrateFromDisk(&authConfig, out, exists)
+	} else {
+		// remote repository
+		srcUrl, err := url.Parse(settings.Src)
+		if err != nil {
+			log.Warn("Invalid src url", logfields.String("src", settings.Src), logfields.Error(err))
+			return errors.Wrap(err, "invalid src url")
+		}
+		if srcUrl != nil && srcUrl.Scheme == "" {
+			srcUrl.Scheme = "http"
+		}
+		return MigrateFromUrl(&authConfig, out, srcUrl, exists)
+	}
+}
+
+func MigrateFromDisk(cfg *config.AuthConfig, out io.Writer, exists map[string]bool) error {
+	log.Info("Stat source repository ...")
+
+	repositoryFileInfo, err := os.Stat(settings.Src)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			log.Warn("source repository not found", logfields.String("path", settings.Src))
+			return nil
+		}
+		return err
+	}
+	if !repositoryFileInfo.IsDir() {
+		return errors.New("source repository is not a directory")
+	}
+
+	if err = migrateRepository(out, cfg.Username, cfg.Password, exists); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func MigrateFromUrl(cfg *action.Configuration, out io.Writer, srcUrl *url.URL) error {
+func MigrateFromUrl(cfg *config.AuthConfig, out io.Writer, srcUrl *url.URL, exists map[string]bool) error {
 	// 默认为 nexus
 	if settings.SrcType == "" {
 		settings.SrcType = "nexus"
 	}
 	switch settings.SrcType {
 	case "nexus":
-		return MigrateFromNexus(cfg, out, srcUrl)
+		return MigrateFromNexus(cfg, out, srcUrl, exists)
 	case "jfrog":
-		return MigrateFromJfrog(cfg, out, srcUrl)
+		return MigrateFromJfrog(cfg, out, srcUrl, exists)
 	default:
 		return errors.Errorf("This src-type [%s] is not supported", settings.SrcType)
 	}
 }
 
-func MigrateFromNexus(cfg *action.Configuration, out io.Writer, nexusUrl *url.URL) error {
+func MigrateFromNexus(cfg *config.AuthConfig, out io.Writer, nexusUrl *url.URL, exists map[string]bool) error {
 	log.Infof("Get file list from source repository [%s] ...", settings.Src)
 
 	nexusScheme := nexusUrl.Scheme
@@ -143,34 +153,14 @@ func MigrateFromNexus(cfg *action.Configuration, out io.Writer, nexusUrl *url.UR
 		// TODO: 是否要做个最大限制跳出循环，并输出 continuationToken 让用户手动执行下一次同步
 	}
 
-	log.Info("Check authorization of the registry")
-	configFile, err := cfg.RegistryClient.ConfigFile()
-	if err != nil {
-		return errors.Wrap(err, "failed to get config file")
-	}
-
-	has, authConfig, err := configFile.GetAuthConfig(settings.Dst)
-	if err != nil {
-		return errors.Wrap(err, "failed to get registry authorization info")
-	}
-	if !has {
-		return errors.New("Unauthorized: authentication required. Maybe you haven't logged in before.")
-	}
-
-	if settings.Verbose {
-		log.Debug("Auth config", logfields.String("host", authConfig.ServerAddress),
-			logfields.String("username", authConfig.Username),
-			logfields.String("password", authConfig.Password))
-	}
-
-	if err = migrateNexusRepository(out, nexusItemList, authConfig.Username, authConfig.Password); err != nil {
+	if err := migrateNexusRepository(out, nexusItemList, cfg.Username, cfg.Password, exists); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func MigrateFromJfrog(cfg *action.Configuration, out io.Writer, jfrogUrl *url.URL) error {
+func MigrateFromJfrog(cfg *config.AuthConfig, out io.Writer, jfrogUrl *url.URL, exists map[string]bool) error {
 	log.Infof("Get file list from source repository [%s] ...", settings.Src)
 	// 获取仓库名称
 	urlPathStrs := strings.Split(strings.Trim(jfrogUrl.Path, "/"), "/")
@@ -181,27 +171,7 @@ func MigrateFromJfrog(cfg *action.Configuration, out io.Writer, jfrogUrl *url.UR
 		return errors.Wrap(err, "failed to get file list")
 	}
 
-	log.Info("Check authorization of the registry")
-	configFile, err := cfg.RegistryClient.ConfigFile()
-	if err != nil {
-		return errors.Wrap(err, "failed to get config file")
-	}
-
-	has, authConfig, err := configFile.GetAuthConfig(settings.Dst)
-	if err != nil {
-		return errors.Wrap(err, "failed to get registry authorization info")
-	}
-	if !has {
-		return errors.New("Unauthorized: authentication required. Maybe you haven't logged in before.")
-	}
-
-	if settings.Verbose {
-		log.Debug("Auth config", logfields.String("host", authConfig.ServerAddress),
-			logfields.String("username", authConfig.Username),
-			logfields.String("password", authConfig.Password))
-	}
-
-	if err = migrateJfrogRepository(out, filesInfo.Res, authConfig.Username, authConfig.Password); err != nil {
+	if err = migrateJfrogRepository(out, filesInfo.Res, cfg.Username, cfg.Password, exists); err != nil {
 		return err
 	}
 
@@ -256,10 +226,10 @@ func getFileListFromNexus(scheme, nexusHost, repository, continuationToken strin
 	return getComponentsResp, nil
 }
 
-func migrateRepository(w io.Writer, username, password string) error {
+func migrateRepository(w io.Writer, username, password string, exists map[string]bool) error {
 	log.Info("Scanning repository ...")
 
-	repository, err := GetRepository(settings.Src, settings.MaxFiles)
+	repository, err := GetRepository(settings.Src, settings.MaxFiles, exists)
 	if err != nil {
 		return err
 	}
@@ -270,7 +240,7 @@ func migrateRepository(w io.Writer, username, password string) error {
 		logfields.Int("versions", flattenRepository.GetVersionCount()),
 		logfields.Int("files", flattenRepository.GetFileCount()))
 	if flattenRepository.GetFileCount() == 0 {
-		log.Warn("no files found, no need to migrate")
+		log.Warn("no files found or files have been migrated, no need to migrate")
 		return nil
 	}
 	if settings.Verbose {
@@ -350,10 +320,10 @@ func migrateRepository(w io.Writer, username, password string) error {
 	return nil
 }
 
-func migrateJfrogRepository(w io.Writer, jfrogFiles []remote.JfrogFile, username, password string) error {
+func migrateJfrogRepository(w io.Writer, jfrogFiles []remote.JfrogFile, username, password string, exists map[string]bool) error {
 	log.Info("Scanning jfrog repository ...")
 
-	repository, err := GetRepositoryFromJfrogFile(settings.Src, jfrogFiles)
+	repository, err := GetRepositoryFromJfrogFile(settings.Src, jfrogFiles, exists)
 	if err != nil {
 		return err
 	}
@@ -364,7 +334,7 @@ func migrateJfrogRepository(w io.Writer, jfrogFiles []remote.JfrogFile, username
 		logfields.Int("versions", flattenRepository.GetVersionCount()),
 		logfields.Int("files", flattenRepository.GetFileCount()))
 	if flattenRepository.GetFileCount() == 0 {
-		log.Warn("no files found, no need to migrate")
+		log.Warn("no files found or files have been migrated, no need to migrate")
 		return nil
 	}
 	if settings.Verbose {
@@ -444,10 +414,10 @@ func migrateJfrogRepository(w io.Writer, jfrogFiles []remote.JfrogFile, username
 	return nil
 }
 
-func migrateNexusRepository(w io.Writer, nexusItemList []nexus.Item, username, password string) error {
+func migrateNexusRepository(w io.Writer, nexusItemList []nexus.Item, username, password string, exists map[string]bool) error {
 	log.Info("Scanning nexus repository ...")
 
-	repository, err := GetRepositoryFromNexusItems(settings.Src, nexusItemList)
+	repository, err := GetRepositoryFromNexusItems(settings.Src, nexusItemList, exists)
 	if err != nil {
 		return err
 	}
@@ -458,7 +428,7 @@ func migrateNexusRepository(w io.Writer, nexusItemList []nexus.Item, username, p
 		logfields.Int("versions", flattenRepository.GetVersionCount()),
 		logfields.Int("files", flattenRepository.GetFileCount()))
 	if flattenRepository.GetFileCount() == 0 {
-		log.Warn("no files found, no need to migrate")
+		log.Warn("no files found or files have been migrated, no need to migrate")
 		return nil
 	}
 	if settings.Verbose {
@@ -585,8 +555,9 @@ func doNexusMigrate(path, downloadUrl, username, password string) error {
 	return nil
 }
 
-func GetRepository(repositoryPath string, maxFiles int) (repository *types.Repository, err error) {
+func GetRepository(repositoryPath string, maxFiles int, exists map[string]bool) (repository *types.Repository, err error) {
 	var fileCount int
+	var needMigrateFileCount int
 	repository = &types.Repository{Path: repositoryPath}
 	if err = filepath.WalkDir(repositoryPath, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -606,7 +577,7 @@ func GetRepository(repositoryPath string, maxFiles int) (repository *types.Repos
 			strings.HasPrefix(d.Name(), "_") {
 			return nil
 		}
-		if maxFiles >= 0 && fileCount >= maxFiles { // FIXME
+		if maxFiles >= 0 && needMigrateFileCount >= maxFiles { // FIXME
 			return filepath.SkipDir
 		}
 
@@ -614,19 +585,24 @@ func GetRepository(repositoryPath string, maxFiles int) (repository *types.Repos
 		if err != nil {
 			return errors.Wrap(err, "failed to get artifact info")
 		}
-		repository.AddVersionFile(groupName, artifact, version, filename, path)
 		fileCount++
+		if settings.Force || isNeedMigrate(exists, groupName, artifact, version) {
+			repository.AddVersionFile(groupName, artifact, version, filename, path)
+			needMigrateFileCount++
+		}
 
 		return nil
 	}); err != nil {
 		return nil, errors.Wrap(err, "failed to walk repository")
 	}
 
+	log.Infof("repository file count is:%d, need migrate count is:%d", fileCount, needMigrateFileCount)
 	return
 }
 
-func GetRepositoryFromJfrogFile(repositoryUrl string, jfrogFiles []remote.JfrogFile) (repository *types.Repository, err error) {
+func GetRepositoryFromJfrogFile(repositoryUrl string, jfrogFiles []remote.JfrogFile, exists map[string]bool) (repository *types.Repository, err error) {
 	var fileCount int
+	var needMigrateFileCount int
 	repository = &types.Repository{Path: repositoryUrl}
 	for _, file := range jfrogFiles {
 		subPath := fmt.Sprintf("%s/%s", file.Path, file.Name)
@@ -635,15 +611,21 @@ func GetRepositoryFromJfrogFile(repositoryUrl string, jfrogFiles []remote.JfrogF
 			log.Warnf("get maven info failed: %s", err.Error())
 			continue
 		}
-		downloadUrl := fmt.Sprintf("%s/%s", settings.GetSrc(), subPath)
-		repository.AddVersionFileBase(groupName, artifact, version, filename, subPath, downloadUrl)
 		fileCount++
+		if settings.Force || isNeedMigrate(exists, groupName, artifact, version) {
+			downloadUrl := fmt.Sprintf("%s/%s", settings.GetSrcWithoutSlash(), subPath)
+			repository.AddVersionFileBase(groupName, artifact, version, filename, subPath, downloadUrl)
+			needMigrateFileCount++
+		}
 	}
+
+	log.Infof("remote repository file count is:%d, need migrate count is:%d", fileCount, needMigrateFileCount)
 	return
 }
 
-func GetRepositoryFromNexusItems(repositoryUrl string, nexusItemList []nexus.Item) (repository *types.Repository, err error) {
+func GetRepositoryFromNexusItems(repositoryUrl string, nexusItemList []nexus.Item, exists map[string]bool) (repository *types.Repository, err error) {
 	var fileCount int
+	var needMigrateFileCount int
 	repository = &types.Repository{Path: repositoryUrl}
 	for _, item := range nexusItemList {
 		var groupName, artifact, version, filename string
@@ -655,10 +637,15 @@ func GetRepositoryFromNexusItems(repositoryUrl string, nexusItemList []nexus.Ite
 		} else {
 			groupName, artifact, version, filename, err = getArtInfoFromSubPath(item.Path)
 		}
-		// SNAPSHOT 版本特例
-		repository.AddVersionFileBase(groupName, artifact, version, filename, item.Path, item.DownloadUrl)
 		fileCount++
+		if settings.Force || isNeedMigrate(exists, groupName, artifact, version) {
+			// SNAPSHOT 版本特例
+			repository.AddVersionFileBase(groupName, artifact, version, filename, item.Path, item.DownloadUrl)
+			needMigrateFileCount++
+		}
 	}
+
+	log.Infof("remote repository file count is:%d, need migrate count is:%d", fileCount, needMigrateFileCount)
 	return
 }
 
@@ -708,7 +695,7 @@ func getArtInfoFromSubPath(subPath string) (groupName, artifact, version, filena
 
 func getPushUrl(filePath string) string {
 	subPath := strings.Trim(strings.TrimPrefix(filePath, settings.Src), "/")
-	return strings.TrimSuffix(settings.Dst, "/") + "/" + subPath
+	return settings.GetDstHasSubSlash() + subPath
 }
 
 func defaultMavenRepositoryPath() string {
@@ -720,4 +707,12 @@ func isLocalRepository(src string) bool {
 		return false
 	}
 	return true
+}
+
+func isNeedMigrate(exists map[string]bool, groupName, artifact, version string) bool {
+	if settings.Force {
+		return true
+	}
+	artifactName := fmt.Sprintf("%s.%s:%s", groupName, artifact, version)
+	return !exists[artifactName]
 }
