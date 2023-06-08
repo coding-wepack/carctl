@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"e.coding.net/codingcorp/carctl/pkg/config"
+	"e.coding.net/codingcorp/carctl/pkg/constants"
 	"e.coding.net/codingcorp/carctl/pkg/log"
 	"e.coding.net/codingcorp/carctl/pkg/settings"
 	"e.coding.net/codingcorp/carctl/pkg/util/httputil"
@@ -29,45 +30,66 @@ func FindDstRepoArtifactsName(cfg *config.AuthConfig, dst, artifactType string) 
 }
 
 // FindDstRepoArtifacts 查询目标仓库已存在的制品信息
-func FindDstRepoArtifacts(cfg *config.AuthConfig, dst, artifactType string) ([]*Artifacts, error) {
+func FindDstRepoArtifacts(cfg *config.AuthConfig, dst, artifactType string) (data []*Artifacts, err error) {
 	// 解析目标 URL，获取域名以及项目名、仓库名
-	dstUrl, err := url.Parse(dst)
+	scheme, host, project, repo, err := parseDst(dst, artifactType)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to parse dst url %s", settings.GetDstWithoutSlash())
-	}
-	host := replaceHost(dstUrl.Host, artifactType)
-	split := strings.Split(strings.Trim(dstUrl.Path, "/"), "/")
-	if len(split) != 2 {
-		return nil, errors.New("dst url path format must match /{project}/{repository}")
+		return
 	}
 
+	// 拼接 open api 域名，构建请求体
+	openApiUrl := fmt.Sprintf("%s://%s/open-api", scheme, host)
+	pageNumber, pageSize := 1, 1000
 	// 构建 open api 请求，查询仓库下的制品版本信息
-	openApiUrl := fmt.Sprintf("%s://%s/open-api", dstUrl.Scheme, host)
 	req := &DescribeTeamArtifactsReq{
-		Action:     "DescribeTeamArtifacts",
-		PageNumber: 1,
-		PageSize:   999999,
+		Action:   "DescribeTeamArtifacts",
+		PageSize: pageSize,
 		Rule: &DescribeTeamArtifactsRule{
-			ProjectName: split[:1],
-			Repository:  split[1:],
+			ProjectName: []string{project},
+			Repository:  []string{repo},
 		},
 	}
-	marshal, err := json.Marshal(req)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to marshal describe team artifacts reqeust")
-	}
 	if settings.Verbose {
-		log.Debugf("find exists artifacts, url: %s, username: %s, password: %s, reqBody: %s", openApiUrl, cfg.Username, cfg.Password, string(marshal))
+		log.Debugf("find exists artifacts, url: %s, username: %s, password: %s, project: %s, repository: %s",
+			openApiUrl, cfg.Username, cfg.Password, project, repo)
 	}
 
-	resp, err := httputil.DefaultClient.PostJson(openApiUrl, bytes.NewReader(marshal), cfg.Username, cfg.Password)
+	for {
+		// 发起分页请求
+		req.PageNumber = pageNumber
+		count, set, err := doFindWithPage(cfg, openApiUrl, req)
+		if err != nil {
+			return nil, err
+		}
+		if settings.Verbose {
+			log.Debugf("find with pageNumber:%d, pageSize:%d, totalCount:%d", pageNumber, pageSize, count)
+		}
+		data = append(data, set...)
+		if pageNumber*pageSize > count {
+			break
+		}
+		pageNumber++
+	}
+	return data, nil
+}
+
+func doFindWithPage(cfg *config.AuthConfig, url string, req *DescribeTeamArtifactsReq) (totalCount int, instanceSet []*Artifacts, err error) {
+	marshal, err := json.Marshal(req)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to describe team artifacts")
+		err = errors.Wrapf(err, "failed to marshal describe team artifacts reqeust")
+		return
+	}
+
+	resp, err := httputil.DefaultClient.PostJson(url, bytes.NewReader(marshal), cfg.Username, cfg.Password)
+	if err != nil {
+		err = errors.Wrapf(err, "failed to describe team artifacts")
+		return
 	}
 	defer ioutils.QuiteClose(resp.Body)
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to read resp body")
+		err = errors.Wrapf(err, "failed to read resp body")
+		return
 	}
 	result := &DescribeTeamArtifactsResp{}
 	err = json.Unmarshal(bodyBytes, result)
@@ -75,12 +97,38 @@ func FindDstRepoArtifacts(cfg *config.AuthConfig, dst, artifactType string) ([]*
 		if settings.Verbose {
 			log.Debugf("unmarshal response body failed, body: %s", string(bodyBytes))
 		}
-		return nil, errors.Wrapf(err, "failed to unmarshal resp body")
+		err = errors.Wrapf(err, "failed to unmarshal resp body")
+		return
 	}
-	if result.Response.Error != nil {
-		return nil, errors.Errorf("failed to find exists artifacts: %s", result.Response.Error.Code)
+	respRsl := result.Response
+	if respRsl.Error != nil {
+		err = errors.Errorf("failed to find exists artifacts: %s", respRsl.Error.Code)
+		return
 	}
-	return result.Response.Data.InstanceSet, nil
+	return respRsl.Data.TotalCount, respRsl.Data.InstanceSet, nil
+}
+
+func parseDst(dst, artifactType string) (scheme, host, project, repo string, err error) {
+	dstUrl, err := url.Parse(dst)
+	if err != nil {
+		err = errors.Wrapf(err, "failed to parse dst url %s", settings.GetDstWithoutSlash())
+		return
+	}
+	scheme = dstUrl.Scheme
+	host = replaceHost(dstUrl.Host, artifactType)
+
+	split := strings.Split(strings.Trim(dstUrl.Path, "/"), "/")
+	if strings.EqualFold(constants.TypeMaven, artifactType) {
+		if len(split) != 3 {
+			err = errors.New("dst url path format must match /repository/{project}/{repository}")
+			return
+		}
+		split = split[1:]
+	} else if len(split) != 2 {
+		err = errors.New("dst url path format must match /{project}/{repository}")
+		return
+	}
+	return dstUrl.Scheme, replaceHost(dstUrl.Host, artifactType), split[0], split[1], nil
 }
 
 func replaceHost(regHost, artifactType string) (host string) {

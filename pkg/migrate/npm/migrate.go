@@ -11,6 +11,7 @@ import (
 
 	"e.coding.net/codingcorp/carctl/pkg/api"
 	"e.coding.net/codingcorp/carctl/pkg/config"
+	"e.coding.net/codingcorp/carctl/pkg/constants"
 	"e.coding.net/codingcorp/carctl/pkg/remote"
 	"e.coding.net/codingcorp/carctl/pkg/util/cmdutil"
 	"github.com/pkg/errors"
@@ -65,7 +66,7 @@ func Migrate(cfg *action.Configuration, out io.Writer) error {
 	// exists artifacts
 	var exists map[string]bool
 	if !settings.Force {
-		exists, err = api.FindDstRepoArtifactsName(&authConfig, settings.GetDstWithoutSlash(), "maven")
+		exists, err = api.FindDstRepoArtifactsName(&authConfig, settings.GetDstWithoutSlash(), constants.TypeNpm)
 		if err != nil {
 			return errors.Wrap(err, "failed to find dst repo exists artifacts")
 		}
