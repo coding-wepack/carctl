@@ -5,9 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"e.coding.net/codingcorp/carctl/pkg/action"
-	composer "e.coding.net/codingcorp/carctl/pkg/migrate/composer"
-	"e.coding.net/codingcorp/carctl/pkg/settings"
+	"github.com/coding-wepack/carctl/pkg/action"
+	composer "github.com/coding-wepack/carctl/pkg/migrate/composer"
+	"github.com/coding-wepack/carctl/pkg/settings"
 )
 
 const migrateComposerHelp = `

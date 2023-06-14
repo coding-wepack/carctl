@@ -12,6 +12,9 @@ var (
 	// Insecure allow connections to TLS registry without certs
 	Insecure bool
 
+	// Cookie is WePack user's cookie
+	Cookie string
+
 	// Username is username
 	Username string
 

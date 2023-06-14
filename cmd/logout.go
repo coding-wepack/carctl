@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"e.coding.net/codingcorp/carctl/cmd/require"
-	"e.coding.net/codingcorp/carctl/pkg/action"
+	"github.com/coding-wepack/carctl/cmd/require"
+	"github.com/coding-wepack/carctl/pkg/action"
 )
 
 const logoutDesc = `
@@ -20,7 +20,7 @@ Examples:
 func newLogoutCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 	return &cobra.Command{
 		Use:   "logout [host]",
-		Short: "logout from a registry",
+		Short: "Logout from a registry",
 		Long:  logoutDesc,
 		Args:  require.MinimumNArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {

@@ -11,9 +11,9 @@ import (
 
 	"github.com/pkg/errors"
 
-	"e.coding.net/codingcorp/carctl/pkg/log"
-	"e.coding.net/codingcorp/carctl/pkg/log/logfields"
-	"e.coding.net/codingcorp/carctl/pkg/util/jsonutil"
+	"github.com/coding-wepack/carctl/pkg/log"
+	"github.com/coding-wepack/carctl/pkg/log/logfields"
+	"github.com/coding-wepack/carctl/pkg/util/jsonutil"
 )
 
 func New(fn string) *Config {

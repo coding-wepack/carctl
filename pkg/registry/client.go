@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"io"
 
-	"e.coding.net/codingcorp/carctl/pkg/auth/common"
+	"github.com/coding-wepack/carctl/pkg/auth/common"
 
-	"e.coding.net/codingcorp/carctl/pkg/auth"
-	"e.coding.net/codingcorp/carctl/pkg/config"
-	"e.coding.net/codingcorp/carctl/pkg/constants"
-	"e.coding.net/codingcorp/carctl/pkg/util/artutil"
+	"github.com/coding-wepack/carctl/pkg/auth"
+	"github.com/coding-wepack/carctl/pkg/config"
+	"github.com/coding-wepack/carctl/pkg/constants"
+	"github.com/coding-wepack/carctl/pkg/util/artutil"
 	"github.com/pkg/errors"
 )
 
