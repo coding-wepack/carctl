@@ -5,10 +5,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"e.coding.net/codingcorp/carctl/pkg/action"
-	"e.coding.net/codingcorp/carctl/pkg/config"
-	"e.coding.net/codingcorp/carctl/pkg/registry"
-	"e.coding.net/codingcorp/carctl/pkg/settings"
+	"github.com/coding-wepack/carctl/cmd/repo"
+	"github.com/coding-wepack/carctl/pkg/action"
+	"github.com/coding-wepack/carctl/pkg/config"
+	"github.com/coding-wepack/carctl/pkg/registry"
+	"github.com/coding-wepack/carctl/pkg/settings"
 )
 
 const globalUsage = `The CODING Artifact Registry Manager
@@ -17,11 +18,8 @@ Common actions for carctl:
 
 - carctl login:      login to a CODING Artifact Registry
 - carctl logout:     logout from a CODING Artifact Registry
+- carctl repo:       handle and control artifact repository
 - carctl migrate:    migrate artifacts from local or remote to a CODING Artifact Repository
-- carctl pull:       pull artifacts from a CODING Artifact Repository to local (TODO)
-- carctl push:       push artifacts from local to a CODING Artifact Repository (TODO)
-- carctl search:     search for artifacts (TODO)
-- carctl list:       list artifacts (TODO)
 `
 
 func newRootCmd(cfg *action.Configuration, out io.Writer, args []string) (*cobra.Command, error) {
@@ -53,6 +51,7 @@ func newRootCmd(cfg *action.Configuration, out io.Writer, args []string) (*cobra
 		newVersionCmd(),
 		newLoginCmd(cfg, out),
 		newLogoutCmd(cfg, out),
+		repo.NewRepoCmd(),
 	)
 
 	return cmd, nil

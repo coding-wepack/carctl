@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	"e.coding.net/codingcorp/carctl/pkg/settings"
+	"github.com/coding-wepack/carctl/pkg/settings"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 )

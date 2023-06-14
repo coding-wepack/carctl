@@ -1,10 +1,11 @@
 package types
 
 import (
-	"e.coding.net/codingcorp/carctl/pkg/migrate/pypi/types/nexus"
+	"io"
+
+	"github.com/coding-wepack/carctl/pkg/migrate/pypi/types/nexus"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
-	"io"
 )
 
 var (

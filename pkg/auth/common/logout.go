@@ -3,7 +3,7 @@ package common
 import (
 	"context"
 
-	"e.coding.net/codingcorp/carctl/pkg/auth"
+	"github.com/coding-wepack/carctl/pkg/auth"
 )
 
 func (c *Client) Logout(ctx context.Context, hostname string) error {

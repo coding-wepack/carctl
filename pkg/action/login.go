@@ -3,7 +3,7 @@ package action
 import (
 	"io"
 
-	"e.coding.net/codingcorp/carctl/pkg/registry"
+	"github.com/coding-wepack/carctl/pkg/registry"
 )
 
 type RegistryLogin struct {

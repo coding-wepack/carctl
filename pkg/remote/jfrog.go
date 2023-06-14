@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"e.coding.net/codingcorp/carctl/pkg/settings"
+	"github.com/coding-wepack/carctl/pkg/settings"
 	"github.com/jfrog/jfrog-client-go/artifactory"
 	"github.com/jfrog/jfrog-client-go/artifactory/auth"
 	jfconfig "github.com/jfrog/jfrog-client-go/config"

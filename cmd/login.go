@@ -8,13 +8,13 @@ import (
 	"os"
 	"strings"
 
-	"e.coding.net/codingcorp/carctl/pkg/action"
+	"github.com/coding-wepack/carctl/pkg/action"
 	"github.com/moby/term" // nolint
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
-	"e.coding.net/codingcorp/carctl/cmd/require"
-	"e.coding.net/codingcorp/carctl/pkg/settings"
+	"github.com/coding-wepack/carctl/cmd/require"
+	"github.com/coding-wepack/carctl/pkg/settings"
 )
 
 const loginDesc = `
@@ -31,7 +31,7 @@ Examples:
 func newLoginCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "login [host]",
-		Short: "login to a CODING Artifact Registry",
+		Short: "Login to a CODING Artifact Registry",
 		Long:  loginDesc,
 		Args:  require.MinimumNArgs(1),
 		RunE: func(c *cobra.Command, args []string) error {
