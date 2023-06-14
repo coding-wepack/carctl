@@ -18,11 +18,15 @@ to a CODING Artifact Repository easily.
 ### cURL & wget
 
 ```shell
+# Format: 'https://coding-public-generic.pkg.coding.net/registry/disk/carctl/(linux|darwin|windows)/(amd64|arm64)/carctl?version=latest'
+# e.g.,
 $ curl -fL 'https://coding-public-generic.pkg.coding.net/registry/disk/carctl/linux/amd64/carctl?version=latest' -o carctl
 # or wget
 $ wget 'https://coding-public-generic.pkg.coding.net/registry/disk/carctl/linux/amd64/carctl?version=latest' -O carctl
 # for MacOS
 $ wget 'https://coding-public-generic.pkg.coding.net/registry/disk/carctl/darwin/amd64/carctl?version=latest' -O carctl
+# MacOS ARM64
+$ wget 'https://coding-public-generic.pkg.coding.net/registry/disk/carctl/darwin/arm64/carctl?version=latest' -O carctl
 
 $ chmod +x carctl
 $ sudo mv carctl /usr/local/bin
