@@ -31,13 +31,12 @@ jobs:
         run: |
           npm install coding-generic -g
           VERSION=${{ github.ref_name }} ./build.sh all
-          cd ..; ls -lFh
           coding-generic -u=${{ secrets.CODING_PUBLIC_REGISTRY_PROJECT_TOKEN_USERNAME }}:${{ secrets.CODING_PUBLIC_REGISTRY_PROJECT_TOKEN_PASSWORD }} \
             --dir \
-            --path=carctl/build \
+            --path=build/carctl \
             --registry="https://coding-public-generic.pkg.coding.net/registry/disk?version=${{ github.ref_name }}"
 
           coding-generic -u=${{ secrets.CODING_PUBLIC_REGISTRY_PROJECT_TOKEN_USERNAME }}:${{ secrets.CODING_PUBLIC_REGISTRY_PROJECT_TOKEN_PASSWORD }} \
             --dir \
-            --path=carctl/build \
+            --path=build/carctl \
             --registry="https://coding-public-generic.pkg.coding.net/registry/disk?version=latest"

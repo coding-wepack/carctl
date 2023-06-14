@@ -1,5 +1,7 @@
 # carctl
 
+[![carctl](https://github.com/coding-wepack/carctl/actions/workflows/carctl.yml/badge.svg)](https://github.com/coding-wepack/carctl/actions/workflows/carctl.yml)
+
 `carctl` is a tool to help you control your CODING Artifact Registry.
 
 The full name of `carctl` is *CODING Artifacts Repository Control*.
