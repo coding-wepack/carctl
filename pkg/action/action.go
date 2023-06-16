@@ -1,7 +1,7 @@
 package action
 
 import (
-	"e.coding.net/codingcorp/carctl/pkg/registry"
+	"github.com/coding-wepack/carctl/pkg/registry"
 )
 
 type Configuration struct {

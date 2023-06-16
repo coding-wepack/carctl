@@ -1,15 +1,16 @@
-module e.coding.net/codingcorp/carctl
+module github.com/coding-wepack/carctl
 
-go 1.17
+go 1.20
 
 require (
 	github.com/docker/docker v20.10.11+incompatible
+	github.com/go-resty/resty/v2 v2.7.0
 	github.com/jfrog/jfrog-client-go v1.28.1
 	github.com/json-iterator/go v1.1.11
 	github.com/moby/term v0.0.0-20210619224110-3f7ff695adc6
 	github.com/olekukonko/tablewriter v0.0.5
 	github.com/pkg/errors v0.9.1
-	github.com/spf13/cobra v1.2.1
+	github.com/spf13/cobra v1.7.0
 	github.com/stretchr/testify v1.8.2
 	github.com/vbauerster/mpb/v7 v7.2.0
 	go.uber.org/zap v1.19.1
@@ -36,7 +37,7 @@ require (
 	github.com/golang/snappy v0.0.2 // indirect
 	github.com/gookit/color v1.5.3 // indirect
 	github.com/imdario/mergo v0.3.13 // indirect
-	github.com/inconshreveable/mousetrap v1.0.0 // indirect
+	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/jfrog/build-info-go v1.9.0 // indirect
 	github.com/jfrog/gofrog v1.2.5 // indirect

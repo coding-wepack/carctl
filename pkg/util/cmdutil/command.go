@@ -10,7 +10,18 @@ import (
 	"sync"
 
 	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
+
+	"github.com/coding-wepack/carctl/pkg/log"
+	"github.com/coding-wepack/carctl/pkg/settings"
 )
+
+func PreRun(cmd *cobra.Command, args []string) {
+	if settings.Verbose {
+		// debug mode enable
+		log.SetDebug()
+	}
+}
 
 func Command(c string) (output string, err error) {
 	var cmd *exec.Cmd

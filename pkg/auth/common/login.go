@@ -3,8 +3,8 @@ package common
 import (
 	"context"
 
-	"e.coding.net/codingcorp/carctl/pkg/auth"
-	"e.coding.net/codingcorp/carctl/pkg/config"
+	"github.com/coding-wepack/carctl/pkg/auth"
+	"github.com/coding-wepack/carctl/pkg/config"
 	"github.com/pkg/errors"
 )
 

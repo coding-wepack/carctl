@@ -5,9 +5,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"e.coding.net/codingcorp/carctl/pkg/action"
-	"e.coding.net/codingcorp/carctl/pkg/migrate/npm"
-	"e.coding.net/codingcorp/carctl/pkg/settings"
+	"github.com/coding-wepack/carctl/pkg/action"
+	"github.com/coding-wepack/carctl/pkg/migrate/npm"
+	"github.com/coding-wepack/carctl/pkg/settings"
 )
 
 const migrateNpmHelp = `

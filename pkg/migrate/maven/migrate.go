@@ -13,24 +13,23 @@ import (
 	"strings"
 	"time"
 
-	"e.coding.net/codingcorp/carctl/pkg/api"
-	"e.coding.net/codingcorp/carctl/pkg/constants"
-	"e.coding.net/codingcorp/carctl/pkg/remote"
-	"github.com/pkg/errors"
-	"github.com/vbauerster/mpb/v7"
-	"github.com/vbauerster/mpb/v7/decor"
-
 	"e.coding.net/codingcorp/carctl/pkg/action"
+	"e.coding.net/codingcorp/carctl/pkg/api"
 	"e.coding.net/codingcorp/carctl/pkg/config"
+	"e.coding.net/codingcorp/carctl/pkg/constants"
 	"e.coding.net/codingcorp/carctl/pkg/log"
 	"e.coding.net/codingcorp/carctl/pkg/log/logfields"
 	"e.coding.net/codingcorp/carctl/pkg/migrate/maven/types"
 	"e.coding.net/codingcorp/carctl/pkg/migrate/maven/types/nexus"
+	"e.coding.net/codingcorp/carctl/pkg/remote"
 	reportutil "e.coding.net/codingcorp/carctl/pkg/report"
 	"e.coding.net/codingcorp/carctl/pkg/settings"
 	"e.coding.net/codingcorp/carctl/pkg/util/fileutil"
 	"e.coding.net/codingcorp/carctl/pkg/util/httputil"
 	"e.coding.net/codingcorp/carctl/pkg/util/ioutils"
+	"github.com/pkg/errors"
+	"github.com/vbauerster/mpb/v7"
+	"github.com/vbauerster/mpb/v7/decor"
 )
 
 var (

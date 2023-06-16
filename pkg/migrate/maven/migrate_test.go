@@ -4,10 +4,10 @@ import (
 	"os"
 	"testing"
 
-	"e.coding.net/codingcorp/carctl/pkg/action"
-	"e.coding.net/codingcorp/carctl/pkg/log"
-	"e.coding.net/codingcorp/carctl/pkg/registry"
-	"e.coding.net/codingcorp/carctl/pkg/settings"
+	"github.com/coding-wepack/carctl/pkg/action"
+	"github.com/coding-wepack/carctl/pkg/log"
+	"github.com/coding-wepack/carctl/pkg/registry"
+	"github.com/coding-wepack/carctl/pkg/settings"
 	"github.com/stretchr/testify/assert"
 )
 

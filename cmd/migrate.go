@@ -5,8 +5,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"e.coding.net/codingcorp/carctl/cmd/require"
-	"e.coding.net/codingcorp/carctl/pkg/action"
+	"github.com/coding-wepack/carctl/cmd/require"
+	"github.com/coding-wepack/carctl/pkg/action"
 )
 
 const migrateHelp = `

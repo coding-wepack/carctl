@@ -1,8 +1,8 @@
 package main
 
 import (
-	"e.coding.net/codingcorp/carctl/pkg/log"
-	"e.coding.net/codingcorp/carctl/pkg/settings"
+	"github.com/coding-wepack/carctl/pkg/log"
+	"github.com/coding-wepack/carctl/pkg/settings"
 	"github.com/spf13/cobra"
 )
 

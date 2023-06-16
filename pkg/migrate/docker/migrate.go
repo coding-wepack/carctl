@@ -7,21 +7,20 @@ import (
 	"strings"
 	"time"
 
+	"e.coding.net/codingcorp/carctl/pkg/action"
 	"e.coding.net/codingcorp/carctl/pkg/api"
+	"e.coding.net/codingcorp/carctl/pkg/config"
 	"e.coding.net/codingcorp/carctl/pkg/constants"
+	"e.coding.net/codingcorp/carctl/pkg/log"
+	"e.coding.net/codingcorp/carctl/pkg/log/logfields"
+	"e.coding.net/codingcorp/carctl/pkg/migrate/docker/types"
 	"e.coding.net/codingcorp/carctl/pkg/remote"
+	reportutil "e.coding.net/codingcorp/carctl/pkg/report"
+	"e.coding.net/codingcorp/carctl/pkg/settings"
 	"e.coding.net/codingcorp/carctl/pkg/util/cmdutil"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb/v7"
 	"github.com/vbauerster/mpb/v7/decor"
-
-	"e.coding.net/codingcorp/carctl/pkg/action"
-	"e.coding.net/codingcorp/carctl/pkg/config"
-	"e.coding.net/codingcorp/carctl/pkg/log"
-	"e.coding.net/codingcorp/carctl/pkg/log/logfields"
-	"e.coding.net/codingcorp/carctl/pkg/migrate/docker/types"
-	reportutil "e.coding.net/codingcorp/carctl/pkg/report"
-	"e.coding.net/codingcorp/carctl/pkg/settings"
 )
 
 var (

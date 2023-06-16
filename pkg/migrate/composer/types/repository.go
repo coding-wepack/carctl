@@ -1,10 +1,11 @@
 package types
 
 import (
-	"e.coding.net/codingcorp/carctl/pkg/migrate/composer/types/nexus"
+	"io"
+
+	"github.com/coding-wepack/carctl/pkg/migrate/composer/types/nexus"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
-	"io"
 )
 
 var (

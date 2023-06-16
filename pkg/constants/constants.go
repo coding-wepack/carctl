@@ -8,3 +8,7 @@ const (
 	TypePypi     = "pypi"
 	TypeComposer = "composer"
 )
+
+const (
+	BizCodeSucceeded = 0
+)

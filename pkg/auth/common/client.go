@@ -5,8 +5,8 @@ import (
 
 	"github.com/pkg/errors"
 
-	"e.coding.net/codingcorp/carctl/pkg/auth"
-	"e.coding.net/codingcorp/carctl/pkg/config"
+	"github.com/coding-wepack/carctl/pkg/auth"
+	"github.com/coding-wepack/carctl/pkg/config"
 )
 
 // Client provides authentication operations for maven registries.
