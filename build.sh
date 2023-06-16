@@ -9,7 +9,7 @@ arch_list=("arm64" "amd64")
 
 function build() {
   echo "$(date +'%Y-%m-%d %H:%M:%S') - Building app..."
-  go build -mod=vendor -ldflags "-X main.Version=${VERSION}" -o carctl cmd/*.go
+  CGO_ENABLED=0 go build -mod=vendor -ldflags "-X main.Version=${VERSION}" -o carctl cmd/*.go
   echo "$(date +'%Y-%m-%d %H:%M:%S') - App carctl build succeeded"
 }
 
@@ -19,9 +19,9 @@ function build_all() {
       echo "$(date +'%Y-%m-%d %H:%M:%S') - Building for $os/$arch..."
 
       if [ "${os}" == 'windows' ]; then
-        GOOS="$os" GOARCH="$arch" go build -mod=vendor -ldflags "-X main.Version=${VERSION}" -o "build/carctl/${os}/${arch}/carctl.exe" cmd/*.go
+        CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -mod=vendor -ldflags "-X main.Version=${VERSION}" -o "build/carctl/${os}/${arch}/carctl.exe" cmd/*.go
       else
-        GOOS="$os" GOARCH="$arch" go build -mod=vendor -ldflags "-X main.Version=${VERSION}" -o "build/carctl/${os}/${arch}/carctl" cmd/*.go
+        CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -mod=vendor -ldflags "-X main.Version=${VERSION}" -o "build/carctl/${os}/${arch}/carctl" cmd/*.go
       fi
 
       echo "$(date +'%Y-%m-%d %H:%M:%S') - $os/$arch build succeeded"

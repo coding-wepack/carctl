@@ -59,9 +59,10 @@ func (r *Repository) Render(w io.Writer) {
 }
 
 func (r *Repository) ForEach(fn func(name, srcTag, dstTag string, isTlsSrc, isTlsDst bool) error) error {
-	isTlsDst, dst := parseDstUrl(settings.Dst)
+	isTlsDst, dst := parseDstUrl(settings.GetDstWithoutSlash())
+	path := strings.Trim(r.Path, "/")
 	for _, image := range r.Images {
-		srcTag := fmt.Sprintf("%s/%s", r.Path, image.SrcPath)
+		srcTag := fmt.Sprintf("%s/%s", path, image.SrcPath)
 		dstTag := fmt.Sprintf("%s/%s:%s", dst, image.PkgName, image.Version)
 		if err := fn(image.SrcPath, srcTag, dstTag, r.IsTls, isTlsDst); err != nil {
 			if err == ErrForEachContinue {
@@ -76,9 +77,9 @@ func (r *Repository) ForEach(fn func(name, srcTag, dstTag string, isTlsSrc, isTl
 func parseDstUrl(dstUrl string) (isTls bool, registryUrl string) {
 	isTls = strings.HasPrefix(dstUrl, "https://")
 	if isTls {
-		registryUrl = strings.TrimPrefix(settings.Dst, "https://")
+		registryUrl = strings.TrimPrefix(dstUrl, "https://")
 	} else {
-		registryUrl = strings.TrimPrefix(settings.Dst, "http://")
+		registryUrl = strings.TrimPrefix(dstUrl, "http://")
 	}
 	return
 }

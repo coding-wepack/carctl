@@ -14,6 +14,9 @@ import (
 	"time"
 
 	"github.com/coding-wepack/carctl/pkg/action"
+	"github.com/coding-wepack/carctl/pkg/api"
+	"github.com/coding-wepack/carctl/pkg/config"
+	"github.com/coding-wepack/carctl/pkg/constants"
 	"github.com/coding-wepack/carctl/pkg/log"
 	"github.com/coding-wepack/carctl/pkg/log/logfields"
 	"github.com/coding-wepack/carctl/pkg/migrate/pypi/types"
@@ -32,6 +35,34 @@ var (
 )
 
 func Migrate(cfg *action.Configuration, out io.Writer) error {
+	log.Info("Check authorization of the registry")
+	configFile, err := cfg.RegistryClient.ConfigFile()
+	if err != nil {
+		return errors.Wrap(err, "failed to get config file")
+	}
+
+	has, authConfig, err := configFile.GetAuthConfig(settings.Dst)
+	if err != nil {
+		return errors.Wrap(err, "failed to get registry authorization info")
+	}
+	if !has {
+		return errors.New("Unauthorized: authentication required. Maybe you haven't logged in before.")
+	}
+
+	if settings.Verbose {
+		log.Debug("Auth config", logfields.String("host", authConfig.ServerAddress),
+			logfields.String("username", authConfig.Username),
+			logfields.String("password", authConfig.Password))
+	}
+	// exists artifacts
+	var exists map[string]bool
+	if !settings.Force {
+		exists, err = api.FindDstRepoArtifactsName(&authConfig, settings.GetDstWithoutSlash(), constants.TypePypi)
+		if err != nil {
+			return errors.Wrap(err, "failed to find dst repo exists artifacts")
+		}
+	}
+
 	srcUrl, err := url.Parse(settings.Src)
 	if err != nil || srcUrl.Scheme == "" {
 		log.Info("src is not url, only support migrate from remote repository, eg: nexus", logfields.String("src", settings.Src))
@@ -40,7 +71,7 @@ func Migrate(cfg *action.Configuration, out io.Writer) error {
 		}
 		return errors.New("source repository is not remote repository")
 	} else {
-		return MigrateFromUrl(cfg, out, srcUrl)
+		return MigrateFromUrl(&authConfig, out, srcUrl, exists)
 	}
 }
 
@@ -88,19 +119,19 @@ func getFileListFromNexus(scheme, nexusHost, repository, continuationToken strin
 	return getComponentsResp, nil
 }
 
-func MigrateFromUrl(cfg *action.Configuration, out io.Writer, srcUrl *url.URL) error {
+func MigrateFromUrl(cfg *config.AuthConfig, out io.Writer, srcUrl *url.URL, exists map[string]bool) error {
 	if settings.SrcType == "" {
 		settings.SrcType = "nexus"
 	}
 	switch settings.SrcType {
 	case "nexus":
-		return MigrateFromNexus(cfg, out, srcUrl)
+		return MigrateFromNexus(cfg, out, srcUrl, exists)
 	default:
 		return errors.Errorf("This src-type [%s] is not supported", settings.SrcType)
 	}
 }
 
-func MigrateFromNexus(cfg *action.Configuration, out io.Writer, nexusUrl *url.URL) error {
+func MigrateFromNexus(cfg *config.AuthConfig, out io.Writer, nexusUrl *url.URL, exists map[string]bool) error {
 	log.Infof("Get file list from source repository [%s] ...", settings.Src)
 
 	nexusScheme := nexusUrl.Scheme
@@ -124,51 +155,34 @@ func MigrateFromNexus(cfg *action.Configuration, out io.Writer, nexusUrl *url.UR
 		continuationToken = resp.ContinuationToken
 	}
 
-	log.Info("Check authorization of the registry")
-	configFile, err := cfg.RegistryClient.ConfigFile()
-	if err != nil {
-		return errors.Wrap(err, "failed to get config file")
-	}
-
-	has, authConfig, err := configFile.GetAuthConfig(settings.Dst)
-	if err != nil {
-		return errors.Wrap(err, "failed to get registry authorization info")
-	}
-	if !has {
-		return errors.New("Unauthorized: authentication required. Maybe you haven't logged in before.")
-	}
-
-	if settings.Verbose {
-		log.Debug("Auth config", logfields.String("host", authConfig.ServerAddress),
-			logfields.String("username", authConfig.Username),
-			logfields.String("password", authConfig.Password))
-	}
-
-	if err = migrateNexusRepository(out, nexusItemList, authConfig.Username, authConfig.Password); err != nil {
+	if err := migrateNexusRepository(out, nexusItemList, cfg.Username, cfg.Password, exists); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func GetRepositoryFromNexusItems(repositoryUrl string, nexusItemList []nexus.Item) (repository *types.Repository, err error) {
+func GetRepositoryFromNexusItems(repositoryUrl string, nexusItemList []nexus.Item, exists map[string]bool) (repository *types.Repository, err error) {
 	var fileCount int
 	repository = &types.Repository{Path: repositoryUrl}
 	for _, item := range nexusItemList {
 		// may be some filter
 		if item.Pypi.Name != "" && item.Pypi.Version != "" {
-			repository.AddVersionFile(item)
 			fileCount++
+			if settings.Force || isNeedMigrate(item.Pypi.Name, item.Pypi.Version, exists) {
+				repository.AddVersionFile(item)
+				repository.FileCount++
+			}
 		}
 	}
-	repository.FileCount = fileCount
+	log.Infof("remote repository file count is:%d, need migrate count is:%d", fileCount, repository.FileCount)
 	return
 }
 
-func migrateNexusRepository(w io.Writer, nexusItemList []nexus.Item, username, password string) error {
+func migrateNexusRepository(w io.Writer, nexusItemList []nexus.Item, username, password string, exists map[string]bool) error {
 	log.Info("Begin to migrate ...")
 
-	repository, err := GetRepositoryFromNexusItems(settings.Src, nexusItemList)
+	repository, err := GetRepositoryFromNexusItems(settings.Src, nexusItemList, exists)
 	if err != nil {
 		return err
 	}
@@ -318,7 +332,8 @@ func doNexusMigrate(downloadUrl, filePath, name, version, sha256Digest, username
 }
 
 func getPushUrl(filePath string) string {
-	return strings.TrimSuffix(settings.Dst, "/") + "/"
+	// return strings.TrimSuffix(settings.Dst, "/") + "/"
+	return settings.GetDstHasSubSlash()
 }
 
 const (
@@ -351,4 +366,8 @@ var DistExtensions = map[string]string{
 	BzTarExt: Sdist,
 	GzTarExt: Sdist,
 	ZipExt:   Sdist,
+}
+
+func isNeedMigrate(pkg, version string, exists map[string]bool) bool {
+	return !(exists[fmt.Sprintf("%s:%s", pkg, version)])
 }
