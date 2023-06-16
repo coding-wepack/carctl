@@ -9,23 +9,22 @@ import (
 	"strings"
 	"time"
 
+	"e.coding.net/codingcorp/carctl/pkg/action"
 	"e.coding.net/codingcorp/carctl/pkg/api"
 	"e.coding.net/codingcorp/carctl/pkg/config"
 	"e.coding.net/codingcorp/carctl/pkg/constants"
-	"e.coding.net/codingcorp/carctl/pkg/remote"
-	"e.coding.net/codingcorp/carctl/pkg/util/cmdutil"
-	"github.com/pkg/errors"
-	"github.com/vbauerster/mpb/v7"
-	"github.com/vbauerster/mpb/v7/decor"
-
-	"e.coding.net/codingcorp/carctl/pkg/action"
 	"e.coding.net/codingcorp/carctl/pkg/log"
 	"e.coding.net/codingcorp/carctl/pkg/log/logfields"
 	"e.coding.net/codingcorp/carctl/pkg/migrate/maven/types"
+	"e.coding.net/codingcorp/carctl/pkg/remote"
 	reportutil "e.coding.net/codingcorp/carctl/pkg/report"
 	"e.coding.net/codingcorp/carctl/pkg/settings"
+	"e.coding.net/codingcorp/carctl/pkg/util/cmdutil"
 	"e.coding.net/codingcorp/carctl/pkg/util/httputil"
 	"e.coding.net/codingcorp/carctl/pkg/util/ioutils"
+	"github.com/pkg/errors"
+	"github.com/vbauerster/mpb/v7"
+	"github.com/vbauerster/mpb/v7/decor"
 )
 
 const (
@@ -120,7 +119,7 @@ func MigrateFromJfrog(cfg *config.AuthConfig, out io.Writer, jfrogUrl *url.URL, 
 	for _, f := range filesInfo.Res {
 		if strings.HasSuffix(f.Name, ".tgz") {
 			count++
-			if settings.Force || isNeedMigrate(exists, f.Name) {
+			if settings.Force || isNeedMigrate(exists, f.GetFilePath()) {
 				files = append(files, f)
 			}
 		}
@@ -299,9 +298,10 @@ func isLocalRepository(src string) bool {
 	return true
 }
 
-func isNeedMigrate(exists map[string]bool, fileName string) bool {
-	fileName = strings.TrimSuffix(fileName, ".tgz")
-	split := strings.Split(fileName, "-")
+func isNeedMigrate(exists map[string]bool, filePath string) bool {
+	fullName := strings.Split(filePath, "/-/")[1]
+	fullName = strings.TrimSuffix(fullName, ".tgz")
+	split := strings.Split(fullName, "-")
 	pkg := strings.Join(split[:len(split)-1], "-")
 	version := split[len(split)-1]
 	return !exists[fmt.Sprintf("%s:%s", pkg, version)]
