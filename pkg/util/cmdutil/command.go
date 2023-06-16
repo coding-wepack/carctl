@@ -4,16 +4,15 @@ import (
 	"bufio"
 	"context"
 	"io"
-	"log"
+	stdLog "log"
 	"os/exec"
 	"runtime"
 	"sync"
 
-	"github.com/pkg/errors"
-	"github.com/spf13/cobra"
-
 	"github.com/coding-wepack/carctl/pkg/log"
 	"github.com/coding-wepack/carctl/pkg/settings"
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
 )
 
 func PreRun(cmd *cobra.Command, args []string) {
@@ -39,7 +38,7 @@ func Command(c string) (output string, err error) {
 	}
 	stderr, err := cmd.StderrPipe()
 	if err != nil {
-		log.Println("stderr pipe err,", err)
+		stdLog.Println("stderr pipe err,", err)
 		return "", errors.Wrapf(err, "get stderr pipe failed")
 	}
 	var wg sync.WaitGroup

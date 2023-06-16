@@ -8,12 +8,12 @@ import (
 	"net/url"
 	"strings"
 
-	"e.coding.net/codingcorp/carctl/pkg/config"
-	"e.coding.net/codingcorp/carctl/pkg/constants"
-	"e.coding.net/codingcorp/carctl/pkg/log"
-	"e.coding.net/codingcorp/carctl/pkg/settings"
-	"e.coding.net/codingcorp/carctl/pkg/util/httputil"
-	"e.coding.net/codingcorp/carctl/pkg/util/ioutils"
+	"github.com/coding-wepack/carctl/pkg/config"
+	"github.com/coding-wepack/carctl/pkg/constants"
+	"github.com/coding-wepack/carctl/pkg/log"
+	"github.com/coding-wepack/carctl/pkg/settings"
+	"github.com/coding-wepack/carctl/pkg/util/httputil"
+	"github.com/coding-wepack/carctl/pkg/util/ioutils"
 	"github.com/pkg/errors"
 )
 
