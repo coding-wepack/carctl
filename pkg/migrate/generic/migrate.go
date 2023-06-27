@@ -7,6 +7,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coding-wepack/carctl/pkg/action"
@@ -20,6 +21,8 @@ import (
 	"github.com/coding-wepack/carctl/pkg/settings"
 	"github.com/coding-wepack/carctl/pkg/util/httputil"
 	"github.com/coding-wepack/carctl/pkg/util/ioutils"
+	"github.com/coding-wepack/carctl/pkg/util/logutil"
+	"github.com/coding-wepack/carctl/pkg/util/queueutil"
 	"github.com/coding-wepack/carctl/pkg/util/sliceutil"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb/v7"
@@ -112,10 +115,10 @@ func MigrateFromJfrog(cfg *config.AuthConfig, out io.Writer, jfrogUrl *url.URL, 
 		filesInfo.Res = matchFiles
 	}
 
-	var files []*remote.JfrogFile
+	var files []remote.JfrogFile
 	for _, f := range filesInfo.Res {
 		if isNeedMigrate(f.GetFilePath(), exists) {
-			files = append(files, &f)
+			files = append(files, f)
 		}
 	}
 	log.Infof("remote repository file count is:%d, need migrate count is:%d", len(filesInfo.Res), len(files))
@@ -135,7 +138,7 @@ func MigrateFromJfrog(cfg *config.AuthConfig, out io.Writer, jfrogUrl *url.URL, 
 	return nil
 }
 
-func migrateJfrogRepository(w io.Writer, jfrogFileList []*remote.JfrogFile, username, password string) error {
+func migrateJfrogRepository(w io.Writer, jfrogFileList []remote.JfrogFile, username, password string) error {
 	// Progress Bar
 	// initialize progress container, with custom width
 	p := mpb.New(mpb.WithWidth(80))
@@ -169,52 +172,50 @@ func migrateJfrogRepository(w io.Writer, jfrogFileList []*remote.JfrogFile, user
 	if settings.Verbose {
 		defer func() {
 			log.Info("Migrate result:")
-			report.Render(w)
+			report.Render2(w)
 		}()
 	}
 
+	sliceutil.QuickSortReverse(jfrogFileList, func(f remote.JfrogFile) int { return f.Size })
+	dataChan := make(chan remote.JfrogFile)
+	go queueutil.Producer(jfrogFileList, dataChan)
+
 	var wg sync.WaitGroup
-	chunks := sliceutil.Chunk(jfrogFileList, settings.Concurrency)
-	if settings.Verbose {
-		log.Debug("parallel foreach do migrate generic artifacts",
-			logfields.Int("file size", len(jfrogFileList)),
-			logfields.Int("concurrency", settings.Concurrency),
-			logfields.Int("chunk size", len(chunks)))
-	}
-	errChan := make(chan error, len(chunks))
-	for i, items := range chunks {
-		if len(items) == 0 {
-			continue
-		}
+	var goroutineCount int32 = 0
+	errChan := make(chan error)
+	execJobNum := make([]int32, settings.Concurrency)
+	for i := 0; i < settings.Concurrency; i++ {
 		wg.Add(1)
-		if settings.Verbose {
-			log.Debug(fmt.Sprintf("do migrate generic artifacts with chunk[%d]", i), logfields.Int("size", len(items)))
-		}
-		go func(files []*remote.JfrogFile) {
-			defer wg.Done()
-			for _, file := range files {
-				err := doMigrateJfrogArt(file.GetFilePath(), username, password)
-				bar.Increment()
-				if err != nil && err == ErrFileConflict {
-					report.AddSkippedResult(file.Name, file.GetFilePath(), "409 Conflict")
-					continue
-				} else if err != nil {
-					report.AddFailedResult(file.Name, file.GetFilePath(), err.Error())
-					if settings.FailFast {
-						err = errors.Wrapf(err, "failed to migrate %s", file.GetFilePath())
-						errChan <- err
-					}
-				} else {
-					report.AddSucceededResult(file.Name, file.GetFilePath(), "Succeeded")
+		execJobNum[i] = 0
+		go queueutil.Consumer(dataChan, errChan, &wg, &execJobNum[i], func(file remote.JfrogFile) error {
+			atomic.AddInt32(&goroutineCount, 1)
+			useTime, err := doMigrateJfrogArt(file.GetFilePath(), username, password)
+			atomic.AddInt32(&goroutineCount, -1)
+			bar.Increment()
+			if err != nil && err == ErrFileConflict {
+				report.AddSkippedResult2(file.Name, file.GetFilePath(), "409 Conflict", int64(file.Size), useTime)
+				return nil
+			} else if err != nil {
+				report.AddFailedResult2(file.Name, file.GetFilePath(), err.Error(), int64(file.Size), useTime)
+				if settings.FailFast {
+					err = errors.Wrapf(err, "failed to migrate %s", file.GetFilePath())
+					errChan <- err
 				}
+			} else {
+				report.AddSucceededResult2(file.Name, file.GetFilePath(), "Succeeded", int64(file.Size), useTime)
 			}
-		}(items)
+			return nil
+		})
 	}
+
+	go logutil.WriteGoroutineFile(&goroutineCount, execJobNum)
+
 	go func() {
 		wg.Wait()
 		// 关闭通道，表示所有的 goroutine 已经执行完毕
 		close(errChan)
 	}()
+
 	for err := range errChan {
 		if err != nil {
 			return err
@@ -233,38 +234,40 @@ func migrateJfrogRepository(w io.Writer, jfrogFileList []*remote.JfrogFile, user
 	return nil
 }
 
-func doMigrateJfrogArt(path, username, password string) error {
+func doMigrateJfrogArt(path, username, password string) (useTime int64, err error) {
+	start := time.Now()
+	defer func() { useTime = time.Since(start).Milliseconds() }()
 	downloadUrl := getDownloadUrl(path)
 	pushUrl := getPushUrl(path)
-	if settings.Verbose {
-		log.Debug("do migrate jfrog artifacts",
-			logfields.String("downloadUrl", downloadUrl),
-			logfields.String("pushUrl", pushUrl))
-	}
+	// if settings.Verbose {
+	// 	log.Debug("do migrate jfrog artifacts",
+	// 		logfields.String("downloadUrl", downloadUrl),
+	// 		logfields.String("pushUrl", pushUrl))
+	// }
 
 	// download
 	getResp, err := httputil.DefaultClient.GetWithAuth(downloadUrl, settings.SrcUsername, settings.SrcPassword)
 	if err != nil {
-		return errors.Wrapf(err, "failed to download from %s", downloadUrl)
+		return useTime, errors.Wrapf(err, "failed to download from %s", downloadUrl)
 	}
 	defer ioutils.QuiteClose(getResp.Body)
 
 	// push
 	resp, err := httputil.DefaultClient.Put(pushUrl, "", getResp.Body, username, password)
 	if err != nil {
-		return errors.Wrapf(err, "failed to push to %s", pushUrl)
+		return useTime, errors.Wrapf(err, "failed to push to %s", pushUrl)
 	}
 	defer ioutils.QuiteClose(resp.Body)
 	if resp.StatusCode >= http.StatusBadRequest {
 		if resp.StatusCode == http.StatusConflict {
 			// log.Warn("409 Conflict: file has been pushed, and the strategy of destination is not overridable, so just skip it",
 			// 	logfields.String("file", file))
-			return ErrFileConflict
+			return useTime, ErrFileConflict
 		}
-		return errors.Errorf("got an unexpected response status: %s", resp.Status)
+		return useTime, errors.Errorf("got an unexpected response status: %s", resp.Status)
 	}
 
-	return nil
+	return useTime, nil
 }
 
 func getDownloadUrl(filePath string) string {

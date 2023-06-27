@@ -6,11 +6,11 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"sync/atomic"
 
-	"github.com/coding-wepack/carctl/pkg/log"
-	"github.com/coding-wepack/carctl/pkg/log/logfields"
 	"github.com/coding-wepack/carctl/pkg/settings"
-	"github.com/coding-wepack/carctl/pkg/util/sliceutil"
+	"github.com/coding-wepack/carctl/pkg/util/logutil"
+	"github.com/coding-wepack/carctl/pkg/util/queueutil"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 )
@@ -85,37 +85,34 @@ func (r *Repository) ParallelForEach(fn func(name, srcTag, dstTag string, isTlsS
 	isTlsDst, dst := parseDstUrl(settings.GetDstWithoutSlash())
 	path := strings.Trim(r.Path, "/")
 
+	dataChan := make(chan *Image)
+	go queueutil.Producer(r.Images, dataChan)
+
 	var wg sync.WaitGroup
-	chunks := sliceutil.Chunk(r.Images, settings.Concurrency)
-	errChan := make(chan error, len(chunks))
-	if settings.Verbose {
-		log.Debug("parallel foreach do migrate docker images",
-			logfields.Int("tag size", len(r.Images)),
-			logfields.Int("concurrency", settings.Concurrency),
-			logfields.Int("chunk size", len(chunks)))
-	}
-	for i, items := range chunks {
-		if len(items) == 0 {
-			continue
-		}
+	var goroutineCount int32 = 0
+	errChan := make(chan error)
+	execJobNum := make([]int32, settings.Concurrency)
+	for i := 0; i < settings.Concurrency; i++ {
 		wg.Add(1)
-		if settings.Verbose {
-			log.Debug(fmt.Sprintf("do migrate docker images with chunk[%d]", i), logfields.Int("size", len(items)))
-		}
-		go func(items []*Image) {
-			defer wg.Done()
-			for _, image := range r.Images {
-				srcTag := fmt.Sprintf("%s/%s", path, image.SrcPath)
-				dstTag := fmt.Sprintf("%s/%s:%s", dst, image.PkgName, image.Version)
-				if err := fn(image.SrcPath, srcTag, dstTag, r.IsTls, isTlsDst); err != nil {
-					if err == ErrForEachContinue {
-						continue
-					}
-					errChan <- err
+		execJobNum[i] = 0
+		go queueutil.Consumer(dataChan, errChan, &wg, &execJobNum[i], func(image *Image) error {
+			srcTag := fmt.Sprintf("%s/%s", path, image.SrcPath)
+			dstTag := fmt.Sprintf("%s/%s:%s", dst, image.PkgName, image.Version)
+			atomic.AddInt32(&goroutineCount, 1)
+			err := fn(image.SrcPath, srcTag, dstTag, r.IsTls, isTlsDst)
+			atomic.AddInt32(&goroutineCount, -1)
+			if err != nil {
+				if err == ErrForEachContinue {
+					return nil
 				}
+				errChan <- err
 			}
-		}(items)
+			return nil
+		})
 	}
+
+	go logutil.WriteGoroutineFile(&goroutineCount, execJobNum)
+
 	go func() {
 		wg.Wait()
 		// 关闭通道，表示所有的 goroutine 已经执行完毕

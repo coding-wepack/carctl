@@ -1,6 +1,7 @@
 package maven
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/coding-wepack/carctl/pkg/action"
@@ -286,8 +288,10 @@ func migrateRepository(w io.Writer, username, password string, exists map[string
 		}()
 	}
 
-	if err := repository.ParallelForEach(func(group, artifact, version, path, downloadUrl string) error {
+	var count int32
+	if err := repository.ParallelForEach(func(group, artifact, version, path, downloadUrl string, size int64) error {
 		defer bar.Increment()
+		atomic.AddInt32(&count, 1)
 		if err1 := doLocalMigrate(path, username, password); err1 != nil {
 			if err1 == ErrFileConflict {
 				report.AddSkippedResult(strings.Join([]string{group, artifact, version}, ":"), path, "409 Conflict")
@@ -302,11 +306,32 @@ func migrateRepository(w io.Writer, username, password string, exists map[string
 		} else {
 			report.AddSucceededResult(strings.Join([]string{group, artifact, version}, ":"), path, "Succeeded")
 		}
+		atomic.AddInt32(&count, -1)
 
 		return nil
 	}); err != nil {
 		return err
 	}
+
+	go func() {
+		file, err := os.Create("goroutine.txt")
+		if err != nil {
+			log.Error("", logfields.Error(err))
+			return
+		}
+		defer file.Close()
+		write := bufio.NewWriter(file)
+
+		for {
+			_, err = write.WriteString(fmt.Sprintf("%s goroutine number : %d\n", time.Now().Format("15:04:05.000"), count))
+			write.Flush()
+			if err != nil {
+				log.Error("", logfields.Error(err))
+				return
+			}
+			time.Sleep(time.Millisecond * 100)
+		}
+	}()
 
 	// wait for our bar to complete and flush
 	p.Wait()
@@ -376,25 +401,25 @@ func migrateJfrogRepository(w io.Writer, jfrogFiles []remote.JfrogFile, username
 	if settings.Verbose {
 		defer func() {
 			log.Info("Migrate result:")
-			report.Render(w)
+			report.Render2(w)
 		}()
 	}
 
-	if err = repository.ParallelForEach(func(group, artifact, version, path, downloadUrl string) error {
+	if err = repository.ParallelForEach(func(group, artifact, version, path, downloadUrl string, size int64) error {
 		defer bar.Increment()
-		if err1 := doRemoteMigrate(path, downloadUrl, username, password); err1 != nil {
+		if useTime, err1 := doRemoteMigrate(path, downloadUrl, username, password); err1 != nil {
 			if err1 == ErrFileConflict {
-				report.AddSkippedResult(strings.Join([]string{group, artifact, version}, ":"), downloadUrl, "409 Conflict")
+				report.AddSkippedResult2(strings.Join([]string{group, artifact, version}, ":"), downloadUrl, "409 Conflict", size, useTime)
 				return types.ErrForEachContinue
 			}
 
-			report.AddFailedResult(strings.Join([]string{group, artifact, version}, ":"), downloadUrl, err1.Error())
+			report.AddFailedResult2(strings.Join([]string{group, artifact, version}, ":"), downloadUrl, err1.Error(), size, useTime)
 
 			if settings.FailFast {
 				return errors.Wrapf(err1, "failed to migrate %s", path)
 			}
 		} else {
-			report.AddSucceededResult(strings.Join([]string{group, artifact, version}, ":"), downloadUrl, "Succeeded")
+			report.AddSucceededResult2(strings.Join([]string{group, artifact, version}, ":"), downloadUrl, "Succeeded", size, useTime)
 		}
 
 		return nil
@@ -474,9 +499,9 @@ func migrateNexusRepository(w io.Writer, nexusItemList []nexus.Item, username, p
 		}()
 	}
 
-	if err := repository.ParallelForEach(func(group, artifact, version, path, downloadUrl string) error {
+	if err := repository.ParallelForEach(func(group, artifact, version, path, downloadUrl string, size int64) error {
 		defer bar.Increment()
-		if err1 := doRemoteMigrate(path, downloadUrl, username, password); err1 != nil {
+		if _, err1 := doRemoteMigrate(path, downloadUrl, username, password); err1 != nil {
 			if err1 == ErrFileConflict {
 				report.AddSkippedResult(strings.Join([]string{group, artifact, version}, ":"), downloadUrl, "409 Conflict")
 				return types.ErrForEachContinue
@@ -528,7 +553,9 @@ func doLocalMigrate(file, username, password string) error {
 	return nil
 }
 
-func doRemoteMigrate(path, downloadUrl, username, password string) (err error) {
+func doRemoteMigrate(path, downloadUrl, username, password string) (useTime int64, err error) {
+	start := time.Now()
+	defer func() { useTime = time.Since(start).Milliseconds() }()
 	var resp *http.Response
 	for i := 0; i < 3; i++ {
 		resp, err = downloadAndUpload(path, downloadUrl, username, password)
@@ -542,12 +569,12 @@ func doRemoteMigrate(path, downloadUrl, username, password string) (err error) {
 		if resp.StatusCode == http.StatusConflict {
 			// log.Warn("409 Conflict: file has been pushed, and the strategy of destination is not overridable, so just skip it",
 			// 	logfields.String("file", file))
-			return ErrFileConflict
+			return useTime, ErrFileConflict
 		}
-		return errors.Errorf("got an push unexpected response status: %s", resp.Status)
+		return useTime, errors.Errorf("got an push unexpected response status: %s", resp.Status)
 	}
 
-	return nil
+	return useTime, nil
 }
 
 func downloadAndUpload(path, downloadUrl, username, password string) (resp *http.Response, err error) {
@@ -629,7 +656,7 @@ func GetRepositoryFromJfrogFile(repositoryUrl string, jfrogFiles []remote.JfrogF
 		fileCount++
 		if settings.Force || isNeedMigrate(exists, groupName, artifact, version) {
 			downloadUrl := fmt.Sprintf("%s/%s", settings.GetSrcWithoutSlash(), subPath)
-			repository.AddVersionFileBase(groupName, artifact, version, filename, subPath, downloadUrl)
+			repository.AddVersionFileBase(groupName, artifact, version, filename, subPath, downloadUrl, int64(file.Size))
 			needMigrateFileCount++
 		}
 	}
@@ -658,7 +685,7 @@ func GetRepositoryFromNexusItems(repositoryUrl string, nexusItemList []nexus.Ite
 		fileCount++
 		if settings.Force || isNeedMigrate(exists, groupName, artifact, version) {
 			// SNAPSHOT 版本特例
-			repository.AddVersionFileBase(groupName, artifact, version, filename, item.Path, item.DownloadUrl)
+			repository.AddVersionFileBase(groupName, artifact, version, filename, item.Path, item.DownloadUrl, 0)
 			needMigrateFileCount++
 		}
 	}

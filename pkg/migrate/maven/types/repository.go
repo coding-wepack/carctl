@@ -67,6 +67,8 @@ type (
 
 		// DownloadUrl: fullUrl From Nexus Or Coding, e.g., http://localhost:8081/repository/maven-public/net/sf/json-lib/json-lib/2.2.2/json-lib-2.2.2-jdk15.jar
 		DownloadUrl string `json:"downloadUrl,omitempty"`
+
+		Size int64 `json:"size,omitempty"`
 	}
 
 	Maven struct {
@@ -75,6 +77,7 @@ type (
 		version     string
 		path        string
 		downloadUrl string
+		size        int64
 	}
 )
 
@@ -150,12 +153,12 @@ func (r *Repository) GetFileCount() int {
 	return r.FileCount
 }
 
-func (r *Repository) ForEach(fn func(group, artifact, version, path, downloadUrl string) error) error {
+func (r *Repository) ForEach(fn func(group, artifact, version, path, downloadUrl string, size int64) error) error {
 	for _, g := range r.Groups {
 		for _, a := range g.Artifacts {
 			for _, v := range a.Versions {
 				for _, f := range v.Files {
-					if err := fn(g.Name, a.Name, v.Name, f.Path, f.DownloadUrl); err != nil {
+					if err := fn(g.Name, a.Name, v.Name, f.Path, f.DownloadUrl, f.Size); err != nil {
 						if err == ErrForEachContinue {
 							continue
 						}
@@ -168,7 +171,41 @@ func (r *Repository) ForEach(fn func(group, artifact, version, path, downloadUrl
 	return nil
 }
 
-func (r *Repository) ParallelForEach(fn func(group, artifact, version, path, downloadUrl string) error) error {
+func producer(out chan<- int) {
+	defer close(out)
+	for i := 0; i < 10; i++ {
+		out <- i
+	}
+}
+
+func consumer(in <-chan int, done chan<- bool) {
+	defer func() {
+		done <- true
+	}()
+	for {
+		select {
+		case val, ok := <-in:
+			if !ok {
+				return
+			}
+			fmt.Println(val)
+		}
+	}
+}
+
+func main() {
+	dataChan := make(chan int)
+	doneChan := make(chan bool)
+	go producer(dataChan)
+	for i := 0; i < 3; i++ {
+		go consumer(dataChan, doneChan)
+	}
+	for i := 0; i < 3; i++ {
+		<-doneChan
+	}
+}
+
+func (r *Repository) ParallelForEach(fn func(group, artifact, version, path, downloadUrl string, size int64) error) error {
 	if settings.Concurrency <= 1 {
 		return r.ForEach(fn)
 	}
@@ -183,6 +220,7 @@ func (r *Repository) ParallelForEach(fn func(group, artifact, version, path, dow
 						version:     v.Name,
 						path:        f.Path,
 						downloadUrl: f.DownloadUrl,
+						size:        f.Size,
 					})
 				}
 			}
@@ -209,7 +247,7 @@ func (r *Repository) ParallelForEach(fn func(group, artifact, version, path, dow
 		go func(items []*Maven) {
 			defer wg.Done()
 			for _, item := range items {
-				if err := fn(item.group, item.artifact, item.version, item.path, item.downloadUrl); err != nil {
+				if err := fn(item.group, item.artifact, item.version, item.path, item.downloadUrl, item.size); err != nil {
 					if err == ErrForEachContinue {
 						continue
 					}
@@ -232,11 +270,31 @@ func (r *Repository) ParallelForEach(fn func(group, artifact, version, path, dow
 	return nil
 }
 
-func (r *Repository) AddVersionFile(groupName, artifactName, versionName, filename, filePath string) {
-	r.AddVersionFileBase(groupName, artifactName, versionName, filename, filePath, "")
+func doMigrate(in <-chan *Maven, done chan<- bool, errChan chan<- error, fn func(group, artifact, version, path, downloadUrl string, size int64) error) {
+	defer func() {
+		done <- true
+	}()
+	for {
+		select {
+		case item, ok := <-in:
+			if !ok {
+				continue
+			}
+			if err := fn(item.group, item.artifact, item.version, item.path, item.downloadUrl, item.size); err != nil {
+				if err == ErrForEachContinue {
+					continue
+				}
+				errChan <- err
+			}
+		}
+	}
 }
 
-func (r *Repository) AddVersionFileBase(groupName, artifactName, versionName, filename, filePath, downloadUrl string) {
+func (r *Repository) AddVersionFile(groupName, artifactName, versionName, filename, filePath string) {
+	r.AddVersionFileBase(groupName, artifactName, versionName, filename, filePath, "", 0)
+}
+
+func (r *Repository) AddVersionFileBase(groupName, artifactName, versionName, filename, filePath, downloadUrl string, size int64) {
 	if !r.HasGroup(groupName) {
 		r.AddGroupName(groupName)
 	}
@@ -254,7 +312,7 @@ func (r *Repository) AddVersionFileBase(groupName, artifactName, versionName, fi
 						if v.Name == versionName {
 
 							if !v.HasFile(filename) {
-								v.AddFile(filename, filePath, downloadUrl)
+								v.AddFile(filename, filePath, downloadUrl, size)
 							}
 
 						}
@@ -369,8 +427,8 @@ func (v *Version) HasFile(filename string) bool {
 	return false
 }
 
-func (v *Version) AddFile(filename, filePath, downloadUrl string) {
-	v.Files = append(v.Files, &VersionFile{Name: filename, Path: filePath, DownloadUrl: downloadUrl})
+func (v *Version) AddFile(filename, filePath, downloadUrl string, size int64) {
+	v.Files = append(v.Files, &VersionFile{Name: filename, Path: filePath, DownloadUrl: downloadUrl, Size: size})
 }
 
 func (f *FlattenRepository) Render(w io.Writer) {

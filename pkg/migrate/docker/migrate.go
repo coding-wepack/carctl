@@ -18,6 +18,7 @@ import (
 	reportutil "github.com/coding-wepack/carctl/pkg/report"
 	"github.com/coding-wepack/carctl/pkg/settings"
 	"github.com/coding-wepack/carctl/pkg/util/cmdutil"
+	"github.com/coding-wepack/carctl/pkg/util/sliceutil"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb/v7"
 	"github.com/vbauerster/mpb/v7/decor"
@@ -106,6 +107,7 @@ func MigrateFromJfrog(cfg *config.AuthConfig, out io.Writer, jfrogUrl *url.URL, 
 func migrateJfrogRepository(w io.Writer, jfrogUrl *url.URL, jfrogFileList []remote.JfrogFile, auth *config.AuthConfig, exists map[string]bool) error {
 	log.Info("Scanning jfrog repository ...")
 
+	sliceutil.QuickSortReverse(jfrogFileList, func(f remote.JfrogFile) int { return f.Size })
 	repository, err := GetRepositoryFromJfrogFile(jfrogUrl, jfrogFileList, exists)
 	if err != nil {
 		return err
@@ -157,7 +159,7 @@ func migrateJfrogRepository(w io.Writer, jfrogUrl *url.URL, jfrogFileList []remo
 		}()
 	}
 
-	if err = repository.ForEach(func(name, srcTag, dstTag string, isTlsSrc, isTlsDst bool) error {
+	if err = repository.ParallelForEach(func(name, srcTag, dstTag string, isTlsSrc, isTlsDst bool) error {
 		defer bar.Increment()
 		if err1 := doMigrateJfrogArt(srcTag, dstTag, isTlsSrc, isTlsDst, auth); err1 != nil {
 			if err1 == ErrFileConflict {
