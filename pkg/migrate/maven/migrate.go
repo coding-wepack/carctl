@@ -286,9 +286,9 @@ func migrateRepository(w io.Writer, username, password string, exists map[string
 		}()
 	}
 
-	if err := repository.ForEach(func(group, artifact, version, path, downloadUrl string) error {
+	if err := repository.ParallelForEach(func(group, artifact, version, path, downloadUrl string) error {
 		defer bar.Increment()
-		if err1 := doMigrate(path, username, password); err1 != nil {
+		if err1 := doLocalMigrate(path, username, password); err1 != nil {
 			if err1 == ErrFileConflict {
 				report.AddSkippedResult(strings.Join([]string{group, artifact, version}, ":"), path, "409 Conflict")
 				return types.ErrForEachContinue
@@ -380,9 +380,9 @@ func migrateJfrogRepository(w io.Writer, jfrogFiles []remote.JfrogFile, username
 		}()
 	}
 
-	if err := repository.ForEach(func(group, artifact, version, path, downloadUrl string) error {
+	if err = repository.ParallelForEach(func(group, artifact, version, path, downloadUrl string) error {
 		defer bar.Increment()
-		if err1 := doNexusMigrate(path, downloadUrl, username, password); err1 != nil {
+		if err1 := doRemoteMigrate(path, downloadUrl, username, password); err1 != nil {
 			if err1 == ErrFileConflict {
 				report.AddSkippedResult(strings.Join([]string{group, artifact, version}, ":"), downloadUrl, "409 Conflict")
 				return types.ErrForEachContinue
@@ -474,9 +474,9 @@ func migrateNexusRepository(w io.Writer, nexusItemList []nexus.Item, username, p
 		}()
 	}
 
-	if err := repository.ForEach(func(group, artifact, version, path, downloadUrl string) error {
+	if err := repository.ParallelForEach(func(group, artifact, version, path, downloadUrl string) error {
 		defer bar.Increment()
-		if err1 := doNexusMigrate(path, downloadUrl, username, password); err1 != nil {
+		if err1 := doRemoteMigrate(path, downloadUrl, username, password); err1 != nil {
 			if err1 == ErrFileConflict {
 				report.AddSkippedResult(strings.Join([]string{group, artifact, version}, ":"), downloadUrl, "409 Conflict")
 				return types.ErrForEachContinue
@@ -508,7 +508,7 @@ func migrateNexusRepository(w io.Writer, nexusItemList []nexus.Item, username, p
 	return nil
 }
 
-func doMigrate(file, username, password string) error {
+func doLocalMigrate(file, username, password string) error {
 	u := getPushUrl(file)
 	// log.Info("Put file:", logfields.String("file", file), logfields.String("url", u))
 	resp, err := httputil.DefaultClient.PutFile(u, file, username, password)
@@ -528,21 +528,16 @@ func doMigrate(file, username, password string) error {
 	return nil
 }
 
-func doNexusMigrate(path, downloadUrl, username, password string) error {
-	// download
-	getResp, err := httputil.DefaultClient.GetWithAuth(downloadUrl, settings.SrcUsername, settings.SrcPassword)
-	if err != nil {
-		return errors.Wrapf(err, "failed to download from %s", downloadUrl)
+func doRemoteMigrate(path, downloadUrl, username, password string) (err error) {
+	var resp *http.Response
+	for i := 0; i < 3; i++ {
+		resp, err = downloadAndUpload(path, downloadUrl, username, password)
+		if err == nil {
+			break
+		}
+		log.Warn("migrate maven artifacts failed, retry in 1 second...")
+		time.Sleep(time.Second)
 	}
-	defer ioutils.QuiteClose(getResp.Body)
-
-	// push
-	pushUrl := getPushUrl(path)
-	resp, err := httputil.DefaultClient.Put(pushUrl, "", getResp.Body, username, password)
-	if err != nil {
-		return errors.Wrapf(err, "failed to push to %s", pushUrl)
-	}
-	defer ioutils.QuiteClose(resp.Body)
 	if resp.StatusCode >= http.StatusBadRequest {
 		if resp.StatusCode == http.StatusConflict {
 			// log.Warn("409 Conflict: file has been pushed, and the strategy of destination is not overridable, so just skip it",
@@ -553,6 +548,24 @@ func doNexusMigrate(path, downloadUrl, username, password string) error {
 	}
 
 	return nil
+}
+
+func downloadAndUpload(path, downloadUrl, username, password string) (resp *http.Response, err error) {
+	// download
+	getResp, err := httputil.DefaultClient.GetWithAuth(downloadUrl, settings.SrcUsername, settings.SrcPassword)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to download from %s", downloadUrl)
+	}
+	defer ioutils.QuiteClose(getResp.Body)
+
+	// push
+	pushUrl := getPushUrl(path)
+	resp, err = httputil.DefaultClient.Put(pushUrl, "", getResp.Body, username, password)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to push to %s", pushUrl)
+	}
+	defer ioutils.QuiteClose(resp.Body)
+	return
 }
 
 func GetRepository(repositoryPath string, maxFiles int, exists map[string]bool) (repository *types.Repository, err error) {
@@ -595,6 +608,8 @@ func GetRepository(repositoryPath string, maxFiles int, exists map[string]bool) 
 	}); err != nil {
 		return nil, errors.Wrap(err, "failed to walk repository")
 	}
+	// 上面逻辑处理文件的时候，包含 Metadata 文件，因不属于制品版本级别，所以无法通过已存在制品版本来过滤，此处单独过滤
+	needMigrateFileCount = repository.CleanInvalidMetadata(needMigrateFileCount)
 
 	log.Infof("repository file count is:%d, need migrate count is:%d", fileCount, needMigrateFileCount)
 	return
@@ -618,6 +633,9 @@ func GetRepositoryFromJfrogFile(repositoryUrl string, jfrogFiles []remote.JfrogF
 			needMigrateFileCount++
 		}
 	}
+
+	// 上面逻辑处理文件的时候，包含 Metadata 文件，因不属于制品版本级别，所以无法通过已存在制品版本来过滤，此处单独过滤
+	needMigrateFileCount = repository.CleanInvalidMetadata(needMigrateFileCount)
 
 	log.Infof("remote repository file count is:%d, need migrate count is:%d", fileCount, needMigrateFileCount)
 	return
@@ -644,6 +662,8 @@ func GetRepositoryFromNexusItems(repositoryUrl string, nexusItemList []nexus.Ite
 			needMigrateFileCount++
 		}
 	}
+	// 上面逻辑处理文件的时候，包含 Metadata 文件，因不属于制品版本级别，所以无法通过已存在制品版本来过滤，此处单独过滤
+	needMigrateFileCount = repository.CleanInvalidMetadata(needMigrateFileCount)
 
 	log.Infof("remote repository file count is:%d, need migrate count is:%d", fileCount, needMigrateFileCount)
 	return
@@ -713,6 +733,6 @@ func isNeedMigrate(exists map[string]bool, groupName, artifact, version string) 
 	if settings.Force {
 		return true
 	}
-	artifactName := fmt.Sprintf("%s.%s:%s", groupName, artifact, version)
+	artifactName := fmt.Sprintf("%s:%s:%s", groupName, artifact, version)
 	return !exists[artifactName]
 }

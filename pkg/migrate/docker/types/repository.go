@@ -5,8 +5,10 @@ import (
 	"io"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/coding-wepack/carctl/pkg/settings"
+	"github.com/coding-wepack/carctl/pkg/util/sliceutil"
 	"github.com/olekukonko/tablewriter"
 	"github.com/pkg/errors"
 )
@@ -68,6 +70,46 @@ func (r *Repository) ForEach(fn func(name, srcTag, dstTag string, isTlsSrc, isTl
 			if err == ErrForEachContinue {
 				continue
 			}
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *Repository) ParallelForEach(fn func(name, srcTag, dstTag string, isTlsSrc, isTlsDst bool) error) error {
+	if settings.Concurrency <= 1 {
+		return r.ForEach(fn)
+	}
+	isTlsDst, dst := parseDstUrl(settings.GetDstWithoutSlash())
+	path := strings.Trim(r.Path, "/")
+
+	var wg sync.WaitGroup
+	chunks := sliceutil.Chunk(r.Images, settings.Concurrency)
+	errChan := make(chan error, len(chunks))
+	for _, items := range chunks {
+		wg.Add(1)
+		go func(items []*Image) {
+			defer wg.Done()
+			for _, image := range r.Images {
+				srcTag := fmt.Sprintf("%s/%s", path, image.SrcPath)
+				dstTag := fmt.Sprintf("%s/%s:%s", dst, image.PkgName, image.Version)
+				if err := fn(image.SrcPath, srcTag, dstTag, r.IsTls, isTlsDst); err != nil {
+					if err == ErrForEachContinue {
+						continue
+					}
+					errChan <- err
+				}
+			}
+		}(items)
+	}
+	go func() {
+		wg.Wait()
+		// 关闭通道，表示所有的 goroutine 已经执行完毕
+		close(errChan)
+	}()
+
+	for err := range errChan {
+		if err != nil {
 			return err
 		}
 	}

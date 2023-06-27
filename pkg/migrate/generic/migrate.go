@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/coding-wepack/carctl/pkg/action"
@@ -14,12 +15,12 @@ import (
 	"github.com/coding-wepack/carctl/pkg/constants"
 	"github.com/coding-wepack/carctl/pkg/log"
 	"github.com/coding-wepack/carctl/pkg/log/logfields"
-	"github.com/coding-wepack/carctl/pkg/migrate/maven/types"
 	"github.com/coding-wepack/carctl/pkg/remote"
 	reportutil "github.com/coding-wepack/carctl/pkg/report"
 	"github.com/coding-wepack/carctl/pkg/settings"
 	"github.com/coding-wepack/carctl/pkg/util/httputil"
 	"github.com/coding-wepack/carctl/pkg/util/ioutils"
+	"github.com/coding-wepack/carctl/pkg/util/sliceutil"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb/v7"
 	"github.com/vbauerster/mpb/v7/decor"
@@ -111,10 +112,10 @@ func MigrateFromJfrog(cfg *config.AuthConfig, out io.Writer, jfrogUrl *url.URL, 
 		filesInfo.Res = matchFiles
 	}
 
-	var files []remote.JfrogFile
+	var files []*remote.JfrogFile
 	for _, f := range filesInfo.Res {
 		if isNeedMigrate(f.GetFilePath(), exists) {
-			files = append(files, f)
+			files = append(files, &f)
 		}
 	}
 	log.Infof("remote repository file count is:%d, need migrate count is:%d", len(filesInfo.Res), len(files))
@@ -134,7 +135,7 @@ func MigrateFromJfrog(cfg *config.AuthConfig, out io.Writer, jfrogUrl *url.URL, 
 	return nil
 }
 
-func migrateJfrogRepository(w io.Writer, jfrogFileList []remote.JfrogFile, username, password string) error {
+func migrateJfrogRepository(w io.Writer, jfrogFileList []*remote.JfrogFile, username, password string) error {
 	// Progress Bar
 	// initialize progress container, with custom width
 	p := mpb.New(mpb.WithWidth(80))
@@ -172,19 +173,39 @@ func migrateJfrogRepository(w io.Writer, jfrogFileList []remote.JfrogFile, usern
 		}()
 	}
 
-	for _, file := range jfrogFileList {
-		err := doMigrateJfrogArt(file.GetFilePath(), username, password)
-		bar.Increment()
-		if err != nil && err == ErrFileConflict {
-			report.AddSkippedResult(file.Name, file.GetFilePath(), "409 Conflict")
-			return types.ErrForEachContinue
-		} else if err != nil {
-			report.AddFailedResult(file.Name, file.GetFilePath(), err.Error())
-			if settings.FailFast {
-				return errors.Wrapf(err, "failed to migrate %s", file.GetFilePath())
+	var wg sync.WaitGroup
+	chunks := sliceutil.Chunk(jfrogFileList, settings.Concurrency)
+	errChan := make(chan error, len(chunks))
+	for _, items := range chunks {
+		wg.Add(1)
+		go func(files []*remote.JfrogFile) {
+			defer wg.Done()
+			for _, file := range files {
+				err := doMigrateJfrogArt(file.GetFilePath(), username, password)
+				bar.Increment()
+				if err != nil && err == ErrFileConflict {
+					report.AddSkippedResult(file.Name, file.GetFilePath(), "409 Conflict")
+					continue
+				} else if err != nil {
+					report.AddFailedResult(file.Name, file.GetFilePath(), err.Error())
+					if settings.FailFast {
+						err = errors.Wrapf(err, "failed to migrate %s", file.GetFilePath())
+						errChan <- err
+					}
+				} else {
+					report.AddSucceededResult(file.Name, file.GetFilePath(), "Succeeded")
+				}
 			}
-		} else {
-			report.AddSucceededResult(file.Name, file.GetFilePath(), "Succeeded")
+		}(items)
+	}
+	go func() {
+		wg.Wait()
+		// 关闭通道，表示所有的 goroutine 已经执行完毕
+		close(errChan)
+	}()
+	for err := range errChan {
+		if err != nil {
+			return err
 		}
 	}
 

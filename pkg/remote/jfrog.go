@@ -41,7 +41,8 @@ func (f *JfrogFile) GetDockerInfo() (srcPath, pkg, version string, err error) {
 		err = errors.Errorf("the srcPath dir level cannot be less than 2, srcPath: %s", f.Path)
 		return
 	}
-	pkg = strings.Join(split[:len(split)-1], "_")
+	// pkg = strings.Join(split[:len(split)-1], "_")
+	pkg = split[len(split)-2]
 	version = split[len(split)-1]
 	srcPath = fmt.Sprintf("%s:%s", strings.Join(split[:len(split)-1], "/"), version)
 	return

@@ -4,7 +4,12 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"sort"
+	"strings"
+	"sync"
 
+	"github.com/coding-wepack/carctl/pkg/settings"
+	"github.com/coding-wepack/carctl/pkg/util/sliceutil"
 	"github.com/pkg/errors"
 
 	"github.com/olekukonko/tablewriter"
@@ -28,7 +33,7 @@ type (
 		Path string `json:"path"`
 
 		// FileCount is count of files of the repository
-		FileCount int `json:"-"`
+		FileCount int `json:"fileCount"`
 
 		Groups []*Group `json:"groups,omitempty"`
 	}
@@ -60,6 +65,14 @@ type (
 
 		// DownloadUrl: fullUrl From Nexus Or Coding, e.g., http://localhost:8081/repository/maven-public/net/sf/json-lib/json-lib/2.2.2/json-lib-2.2.2-jdk15.jar
 		DownloadUrl string `json:"downloadUrl,omitempty"`
+	}
+
+	Maven struct {
+		group       string
+		artifact    string
+		version     string
+		path        string
+		downloadUrl string
 	}
 )
 
@@ -153,6 +166,58 @@ func (r *Repository) ForEach(fn func(group, artifact, version, path, downloadUrl
 	return nil
 }
 
+func (r *Repository) ParallelForEach(fn func(group, artifact, version, path, downloadUrl string) error) error {
+	if settings.Concurrency <= 1 {
+		return r.ForEach(fn)
+	}
+	mavens := make([]*Maven, 0)
+	for _, g := range r.Groups {
+		for _, a := range g.Artifacts {
+			for _, v := range a.Versions {
+				for _, f := range v.Files {
+					mavens = append(mavens, &Maven{
+						group:       g.Name,
+						artifact:    a.Name,
+						version:     v.Name,
+						path:        f.Path,
+						downloadUrl: f.DownloadUrl,
+					})
+				}
+			}
+		}
+	}
+
+	var wg sync.WaitGroup
+	chunks := sliceutil.Chunk(mavens, settings.Concurrency)
+	errChan := make(chan error, len(chunks))
+	for _, items := range chunks {
+		wg.Add(1)
+		go func(items []*Maven) {
+			defer wg.Done()
+			for _, item := range items {
+				if err := fn(item.group, item.artifact, item.version, item.path, item.downloadUrl); err != nil {
+					if err == ErrForEachContinue {
+						continue
+					}
+					errChan <- err
+				}
+			}
+		}(items)
+	}
+	go func() {
+		wg.Wait()
+		// 关闭通道，表示所有的 goroutine 已经执行完毕
+		close(errChan)
+	}()
+
+	for err := range errChan {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (r *Repository) AddVersionFile(groupName, artifactName, versionName, filename, filePath string) {
 	r.AddVersionFileBase(groupName, artifactName, versionName, filename, filePath, "")
 }
@@ -219,6 +284,40 @@ func (r *Repository) VersionCount() int {
 		}
 	}
 	return count
+}
+
+func (r *Repository) CleanInvalidMetadata(fileCount int) int {
+	for _, g := range r.Groups {
+		var invalidIndex []int
+		for i, a := range g.Artifacts {
+			// 仅有一个 metadata 文件，则需要过滤掉
+			if len(a.Versions) == 1 && strings.EqualFold(a.Versions[0].Name, "Metadata") {
+				invalidIndex = append(invalidIndex, i)
+				fileCount--
+			}
+		}
+		g.Artifacts = deleteIndexes(g.Artifacts, invalidIndex)
+	}
+	var invalidIndex []int
+	for i, g := range r.Groups {
+		if len(g.Artifacts) == 0 {
+			invalidIndex = append(invalidIndex, i)
+		}
+	}
+	r.Groups = deleteIndexes(r.Groups, invalidIndex)
+	return fileCount
+}
+
+func deleteIndexes[T any](s []T, indexes []int) []T {
+	if len(indexes) == 0 {
+		return s
+	}
+	// 降序排列索引以确保正确删除
+	sort.Sort(sort.Reverse(sort.IntSlice(indexes)))
+	for _, index := range indexes {
+		s = append(s[:index], s[index+1:]...)
+	}
+	return s
 }
 
 func (g *Group) HasArtifact(artifactName string) bool {
