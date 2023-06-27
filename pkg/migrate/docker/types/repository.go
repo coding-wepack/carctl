@@ -7,6 +7,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/coding-wepack/carctl/pkg/log"
+	"github.com/coding-wepack/carctl/pkg/log/logfields"
 	"github.com/coding-wepack/carctl/pkg/settings"
 	"github.com/coding-wepack/carctl/pkg/util/sliceutil"
 	"github.com/olekukonko/tablewriter"
@@ -86,8 +88,20 @@ func (r *Repository) ParallelForEach(fn func(name, srcTag, dstTag string, isTlsS
 	var wg sync.WaitGroup
 	chunks := sliceutil.Chunk(r.Images, settings.Concurrency)
 	errChan := make(chan error, len(chunks))
-	for _, items := range chunks {
+	if settings.Verbose {
+		log.Debug("parallel foreach do migrate docker images",
+			logfields.Int("tag size", len(r.Images)),
+			logfields.Int("concurrency", settings.Concurrency),
+			logfields.Int("chunk size", len(chunks)))
+	}
+	for i, items := range chunks {
+		if len(items) == 0 {
+			continue
+		}
 		wg.Add(1)
+		if settings.Verbose {
+			log.Debug(fmt.Sprintf("do migrate docker images with chunk[%d]", i), logfields.Int("size", len(items)))
+		}
 		go func(items []*Image) {
 			defer wg.Done()
 			for _, image := range r.Images {

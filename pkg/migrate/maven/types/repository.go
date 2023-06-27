@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/coding-wepack/carctl/pkg/log"
+	"github.com/coding-wepack/carctl/pkg/log/logfields"
 	"github.com/coding-wepack/carctl/pkg/settings"
 	"github.com/coding-wepack/carctl/pkg/util/sliceutil"
 	"github.com/pkg/errors"
@@ -190,8 +192,20 @@ func (r *Repository) ParallelForEach(fn func(group, artifact, version, path, dow
 	var wg sync.WaitGroup
 	chunks := sliceutil.Chunk(mavens, settings.Concurrency)
 	errChan := make(chan error, len(chunks))
-	for _, items := range chunks {
+	if settings.Verbose {
+		log.Debug("parallel foreach do migrate maven artifacts",
+			logfields.Int("file size", len(mavens)),
+			logfields.Int("concurrency", settings.Concurrency),
+			logfields.Int("chunk size", len(chunks)))
+	}
+	for i, items := range chunks {
+		if len(items) == 0 {
+			continue
+		}
 		wg.Add(1)
+		if settings.Verbose {
+			log.Debug(fmt.Sprintf("do migrate maven artifacts with chunk[%d]", i), logfields.Int("size", len(items)))
+		}
 		go func(items []*Maven) {
 			defer wg.Done()
 			for _, item := range items {

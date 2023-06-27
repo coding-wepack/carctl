@@ -175,9 +175,21 @@ func migrateJfrogRepository(w io.Writer, jfrogFileList []*remote.JfrogFile, user
 
 	var wg sync.WaitGroup
 	chunks := sliceutil.Chunk(jfrogFileList, settings.Concurrency)
+	if settings.Verbose {
+		log.Debug("parallel foreach do migrate generic artifacts",
+			logfields.Int("file size", len(jfrogFileList)),
+			logfields.Int("concurrency", settings.Concurrency),
+			logfields.Int("chunk size", len(chunks)))
+	}
 	errChan := make(chan error, len(chunks))
-	for _, items := range chunks {
+	for i, items := range chunks {
+		if len(items) == 0 {
+			continue
+		}
 		wg.Add(1)
+		if settings.Verbose {
+			log.Debug(fmt.Sprintf("do migrate generic artifacts with chunk[%d]", i), logfields.Int("size", len(items)))
+		}
 		go func(files []*remote.JfrogFile) {
 			defer wg.Done()
 			for _, file := range files {
