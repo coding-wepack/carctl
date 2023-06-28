@@ -69,9 +69,9 @@ func Migrate(cfg *action.Configuration, out io.Writer) error {
 	// exists artifacts
 	var exists map[string]bool
 	if !settings.Force {
-		exists, err = api.FindDstRepoArtifactsName(&authConfig, settings.GetDstWithoutSlash(), constants.TypeMaven)
+		exists, err = api.FindDstExistsFiles(&authConfig, settings.GetDstWithoutSlash(), constants.TypeMaven)
 		if err != nil {
-			return errors.Wrap(err, "failed to find dst repo exists artifacts")
+			return errors.Wrap(err, "failed to find dst repo exists files")
 		}
 	}
 
@@ -626,7 +626,7 @@ func GetRepository(repositoryPath string, maxFiles int, exists map[string]bool) 
 			return errors.Wrap(err, "failed to get artifact info")
 		}
 		fileCount++
-		if settings.Force || isNeedMigrate(exists, groupName, artifact, version) {
+		if settings.Force || isNeedMigrate(exists, groupName, artifact, version, filename) {
 			repository.AddVersionFile(groupName, artifact, version, filename, path)
 			needMigrateFileCount++
 		}
@@ -654,7 +654,7 @@ func GetRepositoryFromJfrogFile(repositoryUrl string, jfrogFiles []remote.JfrogF
 			continue
 		}
 		fileCount++
-		if settings.Force || isNeedMigrate(exists, groupName, artifact, version) {
+		if settings.Force || isNeedMigrate(exists, groupName, artifact, version, filename) {
 			downloadUrl := fmt.Sprintf("%s/%s", settings.GetSrcWithoutSlash(), subPath)
 			repository.AddVersionFileBase(groupName, artifact, version, filename, subPath, downloadUrl, int64(file.Size))
 			needMigrateFileCount++
@@ -683,7 +683,7 @@ func GetRepositoryFromNexusItems(repositoryUrl string, nexusItemList []nexus.Ite
 			groupName, artifact, version, filename, err = getArtInfoFromSubPath(item.Path)
 		}
 		fileCount++
-		if settings.Force || isNeedMigrate(exists, groupName, artifact, version) {
+		if settings.Force || isNeedMigrate(exists, groupName, artifact, version, filename) {
 			// SNAPSHOT 版本特例
 			repository.AddVersionFileBase(groupName, artifact, version, filename, item.Path, item.DownloadUrl, 0)
 			needMigrateFileCount++
@@ -756,10 +756,20 @@ func isLocalRepository(src string) bool {
 	return true
 }
 
-func isNeedMigrate(exists map[string]bool, groupName, artifact, version string) bool {
+func isNeedMigrate(exists map[string]bool, groupName, artifact, version, filename string) bool {
 	if settings.Force {
 		return true
 	}
-	artifactName := fmt.Sprintf("%s:%s:%s", groupName, artifact, version)
+	var artifactName string
+	groupName = strings.Join(strings.Split(groupName, "."), "/")
+	if strings.EqualFold("Metadata", version) {
+		artifactName = join("/", groupName, artifact, filename)
+	} else {
+		artifactName = join("/", groupName, artifact, version, filename)
+	}
 	return !exists[artifactName]
+}
+
+func join(sep string, elems ...string) string {
+	return strings.Join(elems, sep)
 }

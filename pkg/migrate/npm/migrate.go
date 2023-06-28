@@ -65,7 +65,7 @@ func Migrate(cfg *action.Configuration, out io.Writer) error {
 	// exists artifacts
 	var exists map[string]bool
 	if !settings.Force {
-		exists, err = api.FindDstRepoArtifactsName(&authConfig, settings.GetDstWithoutSlash(), constants.TypeNpm)
+		exists, err = api.FindDstExistsArtifacts(&authConfig, settings.GetDstWithoutSlash(), constants.TypeNpm)
 		if err != nil {
 			return errors.Wrap(err, "failed to find dst repo exists artifacts")
 		}
@@ -190,7 +190,7 @@ func migrateJfrogRepository(w io.Writer, jfrogFileList []remote.JfrogFile, usern
 	defer clean(true)
 
 	for i, file := range jfrogFileList {
-		err := doMigrateJfrogArt(file.Name, fmt.Sprintf("%s/%s/%s", settings.GetSrcWithoutSlash(), file.Path, file.Name))
+		err = doMigrateJfrogArt(file.Name, fmt.Sprintf("%s/%s/%s", settings.GetSrcWithoutSlash(), file.Path, file.Name))
 		bar.Increment()
 		if err != nil && err == ErrFileConflict {
 			report.AddSkippedResult(file.Name, file.GetFilePath(), "409 Conflict")

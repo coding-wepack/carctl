@@ -38,3 +38,38 @@ type Error struct {
 	Message string
 	Code    string
 }
+
+type DescribeRepoFileListReq struct {
+	Action            string
+	ContinuationToken string
+	PageSize          int
+	Project           string
+	Repository        string
+}
+
+type DescribeRepoFileListResp struct {
+	Response *DescribeRepoFileListResponse
+}
+
+type DescribeRepoFileListResponse struct {
+	RequestId string
+	Error     *Error
+	Data      *RepoFileListData
+}
+
+type RepoFileListData struct {
+	ContinuationToken string
+	InstanceSet       []*RepoFile
+}
+
+type RepoFile struct {
+	DownloadUrl  string
+	Path         string
+	ArtifactType string
+	Host         string
+	Project      string
+	Repository   string
+	PackageName  string
+	VersionName  string
+	Hash         string
+}

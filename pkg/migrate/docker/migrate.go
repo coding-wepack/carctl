@@ -52,7 +52,7 @@ func Migrate(cfg *action.Configuration, out io.Writer) error {
 	// exists artifacts
 	var exists map[string]bool
 	if !settings.Force {
-		exists, err = api.FindDstRepoArtifactsName(&authConfig, settings.GetDstWithoutSlash(), constants.TypeDocker)
+		exists, err = api.FindDstExistsArtifacts(&authConfig, settings.GetDstWithoutSlash(), constants.TypeDocker)
 		if err != nil {
 			return errors.Wrap(err, "failed to find dst repo exists artifacts")
 		}
