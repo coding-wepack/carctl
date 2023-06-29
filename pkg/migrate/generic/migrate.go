@@ -193,16 +193,16 @@ func migrateJfrogRepository(w io.Writer, jfrogFileList []remote.JfrogFile, usern
 			atomic.AddInt32(&goroutineCount, -1)
 			bar.Increment()
 			if err != nil && err == ErrFileConflict {
-				report.AddSkippedResult2(file.Name, file.GetFilePath(), "409 Conflict", int64(file.Size), useTime)
+				report.AddSkippedResultV2(file.Name, file.GetFilePath(), "409 Conflict", int64(file.Size), useTime)
 				return nil
 			} else if err != nil {
-				report.AddFailedResult2(file.Name, file.GetFilePath(), err.Error(), int64(file.Size), useTime)
+				report.AddFailedResultV2(file.Name, file.GetFilePath(), err.Error(), int64(file.Size), useTime)
 				if settings.FailFast {
 					err = errors.Wrapf(err, "failed to migrate %s", file.GetFilePath())
 					errChan <- err
 				}
 			} else {
-				report.AddSucceededResult2(file.Name, file.GetFilePath(), "Succeeded", int64(file.Size), useTime)
+				report.AddSucceededResultV2(file.Name, file.GetFilePath(), "Succeeded", int64(file.Size), useTime)
 			}
 			return nil
 		})

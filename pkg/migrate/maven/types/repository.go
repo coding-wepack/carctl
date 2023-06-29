@@ -7,11 +7,13 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/coding-wepack/carctl/pkg/log"
 	"github.com/coding-wepack/carctl/pkg/log/logfields"
 	"github.com/coding-wepack/carctl/pkg/settings"
-	"github.com/coding-wepack/carctl/pkg/util/sliceutil"
+	"github.com/coding-wepack/carctl/pkg/util/logutil"
+	"github.com/coding-wepack/carctl/pkg/util/queueutil"
 	"github.com/pkg/errors"
 
 	"github.com/olekukonko/tablewriter"
@@ -171,40 +173,6 @@ func (r *Repository) ForEach(fn func(group, artifact, version, path, downloadUrl
 	return nil
 }
 
-func producer(out chan<- int) {
-	defer close(out)
-	for i := 0; i < 10; i++ {
-		out <- i
-	}
-}
-
-func consumer(in <-chan int, done chan<- bool) {
-	defer func() {
-		done <- true
-	}()
-	for {
-		select {
-		case val, ok := <-in:
-			if !ok {
-				return
-			}
-			fmt.Println(val)
-		}
-	}
-}
-
-func main() {
-	dataChan := make(chan int)
-	doneChan := make(chan bool)
-	go producer(dataChan)
-	for i := 0; i < 3; i++ {
-		go consumer(dataChan, doneChan)
-	}
-	for i := 0; i < 3; i++ {
-		<-doneChan
-	}
-}
-
 func (r *Repository) ParallelForEach(fn func(group, artifact, version, path, downloadUrl string, size int64) error) error {
 	if settings.Concurrency <= 1 {
 		return r.ForEach(fn)
@@ -227,35 +195,36 @@ func (r *Repository) ParallelForEach(fn func(group, artifact, version, path, dow
 		}
 	}
 
-	var wg sync.WaitGroup
-	chunks := sliceutil.Chunk(mavens, settings.Concurrency)
-	errChan := make(chan error, len(chunks))
+	dataChan := make(chan *Maven)
+	go queueutil.Producer(mavens, dataChan)
+
 	if settings.Verbose {
 		log.Debug("parallel foreach do migrate maven artifacts",
 			logfields.Int("file size", len(mavens)),
-			logfields.Int("concurrency", settings.Concurrency),
-			logfields.Int("chunk size", len(chunks)))
+			logfields.Int("concurrency", settings.Concurrency))
 	}
-	for i, items := range chunks {
-		if len(items) == 0 {
-			continue
-		}
+	var wg sync.WaitGroup
+	var goroutineCount int32 = 0
+	errChan := make(chan error)
+	execJobNum := make([]int32, settings.Concurrency)
+	for i := 0; i < settings.Concurrency; i++ {
 		wg.Add(1)
-		if settings.Verbose {
-			log.Debug(fmt.Sprintf("do migrate maven artifacts with chunk[%d]", i), logfields.Int("size", len(items)))
-		}
-		go func(items []*Maven) {
-			defer wg.Done()
-			for _, item := range items {
-				if err := fn(item.group, item.artifact, item.version, item.path, item.downloadUrl, item.size); err != nil {
-					if err == ErrForEachContinue {
-						continue
-					}
-					errChan <- err
+		execJobNum[i] = 0
+		go queueutil.Consumer(dataChan, errChan, &wg, &execJobNum[i], func(item *Maven) error {
+			atomic.AddInt32(&goroutineCount, 1)
+			err := fn(item.group, item.artifact, item.version, item.path, item.downloadUrl, item.size)
+			atomic.AddInt32(&goroutineCount, -1)
+			if err != nil {
+				if err == ErrForEachContinue {
+					return nil
 				}
+				errChan <- err
 			}
-		}(items)
+			return nil
+		})
 	}
+	go logutil.WriteGoroutineFile(&goroutineCount, execJobNum)
+
 	go func() {
 		wg.Wait()
 		// 关闭通道，表示所有的 goroutine 已经执行完毕
@@ -268,26 +237,6 @@ func (r *Repository) ParallelForEach(fn func(group, artifact, version, path, dow
 		}
 	}
 	return nil
-}
-
-func doMigrate(in <-chan *Maven, done chan<- bool, errChan chan<- error, fn func(group, artifact, version, path, downloadUrl string, size int64) error) {
-	defer func() {
-		done <- true
-	}()
-	for {
-		select {
-		case item, ok := <-in:
-			if !ok {
-				continue
-			}
-			if err := fn(item.group, item.artifact, item.version, item.path, item.downloadUrl, item.size); err != nil {
-				if err == ErrForEachContinue {
-					continue
-				}
-				errChan <- err
-			}
-		}
-	}
 }
 
 func (r *Repository) AddVersionFile(groupName, artifactName, versionName, filename, filePath string) {

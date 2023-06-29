@@ -59,7 +59,7 @@ func (r *Report) AddFailedResult(name, path, msg string) {
 	})
 }
 
-func (r *Report) AddSucceededResult2(name, path, msg string, size, time int64) {
+func (r *Report) AddSucceededResultV2(name, path, msg string, size, time int64) {
 	r.SucceededResult = append(r.SucceededResult, Result{
 		Name:    name,
 		Path:    path,
@@ -69,7 +69,7 @@ func (r *Report) AddSucceededResult2(name, path, msg string, size, time int64) {
 	})
 }
 
-func (r *Report) AddSkippedResult2(name, path, msg string, size, time int64) {
+func (r *Report) AddSkippedResultV2(name, path, msg string, size, time int64) {
 	r.SkippedResult = append(r.SkippedResult, Result{
 		Name:    name,
 		Path:    path,
@@ -79,7 +79,7 @@ func (r *Report) AddSkippedResult2(name, path, msg string, size, time int64) {
 	})
 }
 
-func (r *Report) AddFailedResult2(name, path, msg string, size, time int64) {
+func (r *Report) AddFailedResultV2(name, path, msg string, size, time int64) {
 	r.FailedResult = append(r.FailedResult, Result{
 		Name:    name,
 		Path:    path,

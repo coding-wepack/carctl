@@ -8,6 +8,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/coding-wepack/carctl/pkg/log"
+	"github.com/coding-wepack/carctl/pkg/log/logfields"
 	"github.com/coding-wepack/carctl/pkg/settings"
 	"github.com/coding-wepack/carctl/pkg/util/logutil"
 	"github.com/coding-wepack/carctl/pkg/util/queueutil"
@@ -88,6 +90,11 @@ func (r *Repository) ParallelForEach(fn func(name, srcTag, dstTag string, isTlsS
 	dataChan := make(chan *Image)
 	go queueutil.Producer(r.Images, dataChan)
 
+	if settings.Verbose {
+		log.Debug("parallel foreach do migrate docker artifacts",
+			logfields.Int("file size", r.Count),
+			logfields.Int("concurrency", settings.Concurrency))
+	}
 	var wg sync.WaitGroup
 	var goroutineCount int32 = 0
 	errChan := make(chan error)
