@@ -23,6 +23,7 @@ func FindDstExistsArtifacts(cfg *config.AuthConfig, dst, artifactType string) (r
 	if err != nil {
 		return
 	}
+	repo = strings.ToLower(repo)
 	// 拼接 open api 域名，构建请求体
 	openApiUrl := fmt.Sprintf("%s://%s/open-api", scheme, host)
 	pageNumber, pageSize := 1, 1000

@@ -23,6 +23,9 @@ func PreRun(cmd *cobra.Command, args []string) {
 }
 
 func Command(c string) (output string, err error) {
+	if settings.Verbose {
+		log.Debug(c)
+	}
 	var cmd *exec.Cmd
 	switch runtime.GOOS {
 	case "windows":

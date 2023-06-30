@@ -371,6 +371,9 @@ func migrateJfrogRepository(w io.Writer, jfrogFiles []remote.JfrogFile, username
 		log.Info("Repository Info:")
 		repository.Render(w)
 	}
+	if settings.DryRun {
+		return nil
+	}
 
 	// Progress Bar
 	// initialize progress container, with custom width
@@ -406,7 +409,7 @@ func migrateJfrogRepository(w io.Writer, jfrogFiles []remote.JfrogFile, username
 	if settings.Verbose {
 		defer func() {
 			log.Info("Migrate result:")
-			report.Render2(w)
+			report.RenderV2(w)
 		}()
 	}
 

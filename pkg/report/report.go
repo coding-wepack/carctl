@@ -16,11 +16,11 @@ type Report struct {
 }
 
 type Result struct {
-	Name    string `json:"name"`
-	Path    string `json:"path"`
-	Size    int64  `json:"size"`
-	Time    int64  `json:"time"`
-	Message string `json:"message"`
+	Name    string  `json:"name"`
+	Path    string  `json:"path"`
+	Size    float64 `json:"size"`
+	Time    float64 `json:"time"`
+	Message string  `json:"message"`
 }
 
 func NewReport() *Report {
@@ -63,8 +63,8 @@ func (r *Report) AddSucceededResultV2(name, path, msg string, size, time int64) 
 	r.SucceededResult = append(r.SucceededResult, Result{
 		Name:    name,
 		Path:    path,
-		Size:    size,
-		Time:    time,
+		Size:    float64(size) / 1024 / 1024,
+		Time:    float64(time) / 1000,
 		Message: msg,
 	})
 }
@@ -73,8 +73,8 @@ func (r *Report) AddSkippedResultV2(name, path, msg string, size, time int64) {
 	r.SkippedResult = append(r.SkippedResult, Result{
 		Name:    name,
 		Path:    path,
-		Size:    size,
-		Time:    time,
+		Size:    float64(size) / 1024 / 1024,
+		Time:    float64(time) / 1000,
 		Message: msg,
 	})
 }
@@ -83,8 +83,8 @@ func (r *Report) AddFailedResultV2(name, path, msg string, size, time int64) {
 	r.FailedResult = append(r.FailedResult, Result{
 		Name:    name,
 		Path:    path,
-		Size:    size,
-		Time:    time,
+		Size:    float64(size) / 1024 / 1024,
+		Time:    float64(time) / 1000,
 		Message: msg,
 	})
 }
@@ -110,7 +110,7 @@ func (r *Report) Render(w io.Writer) {
 	table.Render()
 }
 
-func (r *Report) Render2(w io.Writer) {
+func (r *Report) RenderV2(w io.Writer) {
 	totalResult := r.mergeIntoOneResult(true)
 	count := len(totalResult)
 	var totalSize float64 = 0
@@ -118,14 +118,14 @@ func (r *Report) Render2(w io.Writer) {
 	data := make([][]string, count)
 	for i, result := range totalResult {
 		data[i] = []string{
-			result.Name, result.Path, fmt.Sprintf("%d", result.Size), fmt.Sprintf("%d", result.Time), result.Message,
+			result.Name, result.Path, fmt.Sprintf("%f", result.Size), fmt.Sprintf("%f", result.Time), result.Message,
 		}
-		totalSize += float64(result.Size) / 1024 / 1024
-		totalTime += float64(result.Time) / 1000
+		totalSize += result.Size
+		totalTime += result.Time
 	}
 
 	table := tablewriter.NewWriter(w)
-	table.SetHeader([]string{"Artifact", "Src Path", "File Size(kb)", "Migrate Time(s)", "Result"})
+	table.SetHeader([]string{"Artifact", "Src Path", "File Size(mb)", "Migrate Time(s)", "Result"})
 	table.SetFooter([]string{
 		"Total", strconv.Itoa(count), fmt.Sprintf("%f", totalSize), fmt.Sprintf("%f", totalTime), "",
 	})

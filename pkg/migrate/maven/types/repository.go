@@ -214,13 +214,10 @@ func (r *Repository) ParallelForEach(fn func(group, artifact, version, path, dow
 			atomic.AddInt32(&goroutineCount, 1)
 			err := fn(item.group, item.artifact, item.version, item.path, item.downloadUrl, item.size)
 			atomic.AddInt32(&goroutineCount, -1)
-			if err != nil {
-				if err == ErrForEachContinue {
-					return nil
-				}
-				errChan <- err
+			if err != nil || err == ErrForEachContinue {
+				return nil
 			}
-			return nil
+			return err
 		})
 	}
 	go logutil.WriteGoroutineFile(&goroutineCount, execJobNum)

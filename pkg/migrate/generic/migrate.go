@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/coding-wepack/carctl/pkg/action"
@@ -16,13 +14,12 @@ import (
 	"github.com/coding-wepack/carctl/pkg/constants"
 	"github.com/coding-wepack/carctl/pkg/log"
 	"github.com/coding-wepack/carctl/pkg/log/logfields"
+	"github.com/coding-wepack/carctl/pkg/migrate/generic/types"
 	"github.com/coding-wepack/carctl/pkg/remote"
 	reportutil "github.com/coding-wepack/carctl/pkg/report"
 	"github.com/coding-wepack/carctl/pkg/settings"
 	"github.com/coding-wepack/carctl/pkg/util/httputil"
 	"github.com/coding-wepack/carctl/pkg/util/ioutils"
-	"github.com/coding-wepack/carctl/pkg/util/logutil"
-	"github.com/coding-wepack/carctl/pkg/util/queueutil"
 	"github.com/coding-wepack/carctl/pkg/util/sliceutil"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb/v7"
@@ -105,6 +102,7 @@ func MigrateFromJfrog(cfg *config.AuthConfig, out io.Writer, jfrogUrl *url.URL, 
 	}
 
 	if len(settings.Prefix) != 0 {
+		totalCount := len(filesInfo.Res)
 		// 过滤匹配 settings.Prefix 的制品
 		var matchFiles []remote.JfrogFile
 		for _, f := range filesInfo.Res {
@@ -113,32 +111,41 @@ func MigrateFromJfrog(cfg *config.AuthConfig, out io.Writer, jfrogUrl *url.URL, 
 			}
 		}
 		filesInfo.Res = matchFiles
+		log.Infof("remote repository file count: %d, match prefix count: %d", totalCount, len(matchFiles))
 	}
 
-	var files []remote.JfrogFile
-	for _, f := range filesInfo.Res {
-		if isNeedMigrate(f.GetFilePath(), exists) {
-			files = append(files, f)
-		}
-	}
-	log.Infof("remote repository file count is:%d, need migrate count is:%d", len(filesInfo.Res), len(files))
-
-	if len(files) == 0 {
-		if len(filesInfo.Res) > 0 {
-			log.Info("all artifacts have been migrated")
-			return nil
-		}
-		return errors.Errorf("generic repository: %s file not found or files have been migrated, please check your repository or command", repository)
+	if len(filesInfo.Res) == 0 {
+		return errors.Errorf("generic repository: %s file not found, please check your repository or command", repository)
 	}
 
-	if err = migrateJfrogRepository(out, files, cfg.Username, cfg.Password); err != nil {
+	if err = migrateJfrogRepository(out, jfrogUrl, filesInfo.Res, cfg.Username, cfg.Password, exists); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func migrateJfrogRepository(w io.Writer, jfrogFileList []remote.JfrogFile, username, password string) error {
+func migrateJfrogRepository(w io.Writer, jfrogUrl *url.URL, jfrogFileList []remote.JfrogFile, username, password string, exists map[string]bool) error {
+	log.Info("Scanning jfrog repository ...")
+
+	sliceutil.QuickSortReverse(jfrogFileList, func(f remote.JfrogFile) int64 { return f.Size })
+	repository, err := GetRepositoryFromJfrogFile(jfrogUrl, jfrogFileList, exists)
+	if err != nil {
+		return err
+	}
+	log.Info("Successfully to scan the repository", logfields.Int("file count", repository.Count))
+	if repository.Count == 0 {
+		log.Warn("no files found or files have been migrated, no need to migrate")
+		return nil
+	}
+	if settings.Verbose {
+		log.Info("Repository Info:")
+		repository.Render(w)
+	}
+	if settings.DryRun {
+		return nil
+	}
+
 	// Progress Bar
 	// initialize progress container, with custom width
 	p := mpb.New(mpb.WithWidth(80))
@@ -172,54 +179,27 @@ func migrateJfrogRepository(w io.Writer, jfrogFileList []remote.JfrogFile, usern
 	if settings.Verbose {
 		defer func() {
 			log.Info("Migrate result:")
-			report.Render2(w)
+			report.RenderV2(w)
 		}()
 	}
 
-	sliceutil.QuickSortReverse(jfrogFileList, func(f remote.JfrogFile) int { return f.Size })
-	dataChan := make(chan remote.JfrogFile)
-	go queueutil.Producer(jfrogFileList, dataChan)
-
-	var wg sync.WaitGroup
-	var goroutineCount int32 = 0
-	errChan := make(chan error)
-	execJobNum := make([]int32, settings.Concurrency)
-	for i := 0; i < settings.Concurrency; i++ {
-		wg.Add(1)
-		execJobNum[i] = 0
-		go queueutil.Consumer(dataChan, errChan, &wg, &execJobNum[i], func(file remote.JfrogFile) error {
-			atomic.AddInt32(&goroutineCount, 1)
-			useTime, err := doMigrateJfrogArt(file.GetFilePath(), username, password)
-			atomic.AddInt32(&goroutineCount, -1)
-			bar.Increment()
-			if err != nil && err == ErrFileConflict {
-				report.AddSkippedResultV2(file.Name, file.GetFilePath(), "409 Conflict", int64(file.Size), useTime)
-				return nil
-			} else if err != nil {
-				report.AddFailedResultV2(file.Name, file.GetFilePath(), err.Error(), int64(file.Size), useTime)
-				if settings.FailFast {
-					err = errors.Wrapf(err, "failed to migrate %s", file.GetFilePath())
-					errChan <- err
-				}
-			} else {
-				report.AddSucceededResultV2(file.Name, file.GetFilePath(), "Succeeded", int64(file.Size), useTime)
-			}
+	if err = repository.ParallelForEach(func(fileName, filePath string, size int64) error {
+		useTime, err := doMigrateJfrogArt(filePath, username, password)
+		bar.Increment()
+		if err != nil && err == ErrFileConflict {
+			report.AddSkippedResultV2(fileName, filePath, "409 Conflict", size, useTime)
 			return nil
-		})
-	}
-
-	go logutil.WriteGoroutineFile(&goroutineCount, execJobNum)
-
-	go func() {
-		wg.Wait()
-		// 关闭通道，表示所有的 goroutine 已经执行完毕
-		close(errChan)
-	}()
-
-	for err := range errChan {
-		if err != nil {
-			return err
+		} else if err != nil {
+			report.AddFailedResultV2(fileName, filePath, err.Error(), size, useTime)
+			if settings.FailFast {
+				err = errors.Wrapf(err, "failed to migrate %s", filePath)
+			}
+		} else {
+			report.AddSucceededResultV2(fileName, filePath, "Succeeded", size, useTime)
 		}
+		return nil
+	}); err != nil {
+		return err
 	}
 
 	// wait for our bar to complete and flush
@@ -239,11 +219,6 @@ func doMigrateJfrogArt(path, username, password string) (useTime int64, err erro
 	defer func() { useTime = time.Since(start).Milliseconds() }()
 	downloadUrl := getDownloadUrl(path)
 	pushUrl := getPushUrl(path)
-	// if settings.Verbose {
-	// 	log.Debug("do migrate jfrog artifacts",
-	// 		logfields.String("downloadUrl", downloadUrl),
-	// 		logfields.String("pushUrl", pushUrl))
-	// }
 
 	// download
 	getResp, err := httputil.DefaultClient.GetWithAuth(downloadUrl, settings.SrcUsername, settings.SrcPassword)
@@ -287,6 +262,26 @@ func isLocalRepository(src string) bool {
 	return true
 }
 
-func isNeedMigrate(filePath string, exists map[string]bool) bool {
-	return !(exists[fmt.Sprintf("%s:latest", filePath)])
+func GetRepositoryFromJfrogFile(jfrogUrl *url.URL, jfrogFileList []remote.JfrogFile, exists map[string]bool) (repository *types.Repository, err error) {
+	fileCount := 0
+	repositoryUrl := fmt.Sprintf("%s%s", jfrogUrl.Host, jfrogUrl.Path)
+	repository = &types.Repository{Path: repositoryUrl}
+	for _, f := range jfrogFileList {
+		file := &types.File{
+			FileName: f.Name,
+			FilePath: f.GetFilePath(),
+			Size:     f.Size,
+		}
+		fileCount++
+		if settings.Force || isNeedMigrate(file, exists) {
+			repository.Files = append(repository.Files, file)
+			repository.Count++
+		}
+	}
+	log.Infof("remote repository file count:%d, need migrate count:%d", fileCount, repository.Count)
+	return
+}
+
+func isNeedMigrate(file *types.File, exists map[string]bool) bool {
+	return !(exists[fmt.Sprintf("%s:latest", file.FilePath)])
 }

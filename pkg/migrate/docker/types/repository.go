@@ -3,7 +3,6 @@ package types
 import (
 	"fmt"
 	"io"
-	"regexp"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -17,21 +16,15 @@ import (
 	"github.com/pkg/errors"
 )
 
-const (
-	ArtifactNameRegexStr = `^[\w.-]+$`
-)
-
-var (
-	ArtifactNameRegex = regexp.MustCompile(ArtifactNameRegexStr)
-)
-
 var (
 	ErrForEachContinue = errors.New("continue")
 )
 
 type (
 	Repository struct {
+		// IsTls is remote url is tls
 		IsTls bool `json:"isTls"`
+
 		// Path is image path to repository
 		Path string `json:"path"`
 
@@ -46,6 +39,7 @@ type (
 		SrcPath string `json:"srcPath,omitempty"`
 		PkgName string `json:"pkgName,omitempty"`
 		Version string `json:"version,omitempty"`
+		Tag     string `json:"tag,omitempty"`
 	}
 )
 
@@ -57,11 +51,44 @@ func (r *Repository) Render(w io.Writer) {
 
 	table := tablewriter.NewWriter(w)
 	table.SetHeader([]string{"Artifact", "Version", "SrcPath"})
-	table.SetFooter([]string{"", "", fmt.Sprintf("Total Images: %d", r.Count)})
+	table.SetFooter([]string{"", "Total Images", fmt.Sprintf("%d", r.Count)})
 	table.SetAutoMergeCells(true)
 	table.SetRowLine(true)
 	table.AppendBulk(data)
 	table.Render()
+}
+
+func (r *Repository) CheckDuplication(w io.Writer) bool {
+	var duplication []*Image
+	imageMap := make(map[string]*Image, len(r.Images))
+	for _, v := range r.Images {
+		image, ok := imageMap[v.Tag]
+		if !ok {
+			imageMap[v.Tag] = v
+			continue
+		}
+		duplication = append(duplication, image, v)
+	}
+	if len(duplication) == 0 {
+		log.Info("congratulations! no duplicate anomalies")
+		return false
+	}
+	duplication = RemoveDuplication(duplication)
+
+	data := make([][]string, len(duplication))
+	for i, v := range duplication {
+		data[i] = []string{v.PkgName, v.Version, v.SrcPath}
+	}
+
+	log.Info("Duplicate Artifacts Info:")
+	table := tablewriter.NewWriter(w)
+	table.SetHeader([]string{"Artifact", "Version", "SrcPath"})
+	table.SetFooter([]string{"", "Total Images", fmt.Sprintf("%d", len(duplication))})
+	table.SetAutoMergeCells(true)
+	table.SetRowLine(true)
+	table.AppendBulk(data)
+	table.Render()
+	return true
 }
 
 func (r *Repository) ForEach(fn func(name, srcTag, dstTag string, isTlsSrc, isTlsDst bool) error) error {
@@ -69,7 +96,7 @@ func (r *Repository) ForEach(fn func(name, srcTag, dstTag string, isTlsSrc, isTl
 	path := strings.Trim(r.Path, "/")
 	for _, image := range r.Images {
 		srcTag := fmt.Sprintf("%s/%s", path, image.SrcPath)
-		dstTag := fmt.Sprintf("%s/%s:%s", dst, image.PkgName, image.Version)
+		dstTag := fmt.Sprintf("%s/%s", dst, image.Tag)
 		if err := fn(image.SrcPath, srcTag, dstTag, r.IsTls, isTlsDst); err != nil {
 			if err == ErrForEachContinue {
 				continue
@@ -104,17 +131,14 @@ func (r *Repository) ParallelForEach(fn func(name, srcTag, dstTag string, isTlsS
 		execJobNum[i] = 0
 		go queueutil.Consumer(dataChan, errChan, &wg, &execJobNum[i], func(image *Image) error {
 			srcTag := fmt.Sprintf("%s/%s", path, image.SrcPath)
-			dstTag := fmt.Sprintf("%s/%s:%s", dst, image.PkgName, image.Version)
+			dstTag := fmt.Sprintf("%s/%s", dst, image.Tag)
 			atomic.AddInt32(&goroutineCount, 1)
 			err := fn(image.SrcPath, srcTag, dstTag, r.IsTls, isTlsDst)
 			atomic.AddInt32(&goroutineCount, -1)
-			if err != nil {
-				if err == ErrForEachContinue {
-					return nil
-				}
-				errChan <- err
+			if err != nil && err == ErrForEachContinue {
+				return nil
 			}
-			return nil
+			return err
 		})
 	}
 
@@ -142,4 +166,17 @@ func parseDstUrl(dstUrl string) (isTls bool, registryUrl string) {
 		registryUrl = strings.TrimPrefix(dstUrl, "http://")
 	}
 	return
+}
+
+func RemoveDuplication(images []*Image) []*Image {
+	m := make(map[string]struct{})
+	result := make([]*Image, 0)
+
+	for _, image := range images {
+		if _, ok := m[image.SrcPath]; !ok {
+			result = append(result, image)
+			m[image.SrcPath] = struct{}{}
+		}
+	}
+	return result
 }

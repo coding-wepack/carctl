@@ -16,16 +16,16 @@ func Chunk[T any](slice []T, n int) [][]T {
 	return result
 }
 
-func QuickSortReverse[T any](arr []T, fn func(t T) int) {
+func QuickSortReverse[T any, N int | int8 | int32 | int64](arr []T, fn func(t T) N) {
 	quickSort(arr, fn, 0, len(arr)-1)
 	Reverse(arr)
 }
 
-func QuickSort[T any](arr []T, fn func(t T) int) {
+func QuickSort[T any, N int | int8 | int32 | int64](arr []T, fn func(t T) N) {
 	quickSort(arr, fn, 0, len(arr)-1)
 }
 
-func quickSort[T any](arr []T, fn func(t T) int, left, right int) {
+func quickSort[T any, N int | int8 | int32 | int64](arr []T, fn func(t T) N, left, right int) {
 	if left < right {
 		pivot := partition(arr, fn, left, right)
 		quickSort(arr, fn, left, pivot-1)
@@ -33,7 +33,7 @@ func quickSort[T any](arr []T, fn func(t T) int, left, right int) {
 	}
 }
 
-func partition[T any](arr []T, fn func(t T) int, left, right int) int {
+func partition[T any, N int | int8 | int32 | int64](arr []T, fn func(t T) N, left, right int) int {
 	pivot := arr[right]
 	i := left - 1
 	for j := left; j < right; j++ {

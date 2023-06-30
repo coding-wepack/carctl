@@ -20,7 +20,7 @@ type JfrogFile struct {
 	Path       string    `json:"path"`
 	Name       string    `json:"name"`
 	Type       string    `json:"type"`
-	Size       int       `json:"size"`
+	Size       int64     `json:"size"`
 	Created    time.Time `json:"created"`
 	CreatedBy  string    `json:"created_by"`
 	Modified   string    `json:"modified"`

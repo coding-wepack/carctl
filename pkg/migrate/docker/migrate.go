@@ -98,6 +98,19 @@ func MigrateFromJfrog(cfg *config.AuthConfig, out io.Writer, jfrogUrl *url.URL, 
 		return errors.Wrap(err, "failed to get file list")
 	}
 
+	if len(settings.Prefix) != 0 {
+		// 过滤匹配 settings.Prefix 的制品
+		totalCount := len(filesInfo.Res)
+		var matchFiles []remote.JfrogFile
+		for _, f := range filesInfo.Res {
+			if strings.HasPrefix(f.GetFilePath(), settings.Prefix) {
+				matchFiles = append(matchFiles, f)
+			}
+		}
+		filesInfo.Res = matchFiles
+		log.Infof("remote repository file count is:%d, match prefix count is:%d", totalCount, len(matchFiles))
+	}
+
 	if err = migrateJfrogRepository(out, jfrogUrl, filesInfo.Res, cfg, exists); err != nil {
 		return err
 	}
@@ -107,7 +120,7 @@ func MigrateFromJfrog(cfg *config.AuthConfig, out io.Writer, jfrogUrl *url.URL, 
 func migrateJfrogRepository(w io.Writer, jfrogUrl *url.URL, jfrogFileList []remote.JfrogFile, auth *config.AuthConfig, exists map[string]bool) error {
 	log.Info("Scanning jfrog repository ...")
 
-	sliceutil.QuickSortReverse(jfrogFileList, func(f remote.JfrogFile) int { return f.Size })
+	sliceutil.QuickSortReverse(jfrogFileList, func(f remote.JfrogFile) int64 { return f.Size })
 	repository, err := GetRepositoryFromJfrogFile(jfrogUrl, jfrogFileList, exists)
 	if err != nil {
 		return err
@@ -120,6 +133,14 @@ func migrateJfrogRepository(w io.Writer, jfrogUrl *url.URL, jfrogFileList []remo
 	if settings.Verbose {
 		log.Info("Repository Info:")
 		repository.Render(w)
+	}
+	duplication := repository.CheckDuplication(w)
+	if !settings.Force && duplication {
+		log.Warn("Duplicate artifacts exist. Please check the artifacts")
+		return nil
+	}
+	if settings.DryRun {
+		return nil
 	}
 
 	// Progress Bar
@@ -194,7 +215,7 @@ func migrateJfrogRepository(w io.Writer, jfrogUrl *url.URL, jfrogFileList []remo
 }
 
 func doMigrateJfrogArt(srcTag, dstTag string, isTlsSrc, isTlsDst bool, auth *config.AuthConfig) error {
-	cmd := fmt.Sprintf("skopeo copy --src-creds=%s:%s --dest-creds=%s:%s --src-tls-verify=%t --dest-tls-verify=%t docker://%s docker://%s",
+	cmd := fmt.Sprintf("skopeo copy --src-creds='%s:%s' --dest-creds='%s:%s' --src-tls-verify=%t --dest-tls-verify=%t docker://%s docker://%s",
 		settings.SrcUsername, settings.SrcPassword, auth.Username, auth.Password, isTlsSrc, isTlsDst, srcTag, dstTag)
 	if settings.Verbose {
 		log.Debug(cmd)
@@ -229,6 +250,7 @@ func GetRepositoryFromJfrogFile(jfrogUrl *url.URL, jfrogFileList []remote.JfrogF
 			PkgName: strings.Trim(pkg, "/"),
 			Version: strings.Trim(version, "/"),
 		}
+		imageTag.Tag = fmt.Sprintf("%s:%s", imageTag.PkgName, imageTag.Version)
 		fileCount++
 		if settings.Force || isNeedMigrate(exists, imageTag) {
 			repository.Images = append(repository.Images, imageTag)
@@ -250,5 +272,5 @@ func isNeedMigrate(exists map[string]bool, imageTag *types.Image) bool {
 	if settings.Force {
 		return true
 	}
-	return !exists[imageTag.SrcPath]
+	return !exists[imageTag.Tag]
 }
