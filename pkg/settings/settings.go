@@ -59,6 +59,8 @@ var (
 
 	// DryRun is print need migrate artifacts
 	DryRun bool
+
+	LargeFileMode bool
 )
 
 func GetSrcWithoutSlash() string {

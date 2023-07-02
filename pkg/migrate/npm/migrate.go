@@ -20,6 +20,7 @@ import (
 	reportutil "github.com/coding-wepack/carctl/pkg/report"
 	"github.com/coding-wepack/carctl/pkg/settings"
 	"github.com/coding-wepack/carctl/pkg/util/cmdutil"
+	"github.com/coding-wepack/carctl/pkg/util/fileutil"
 	"github.com/coding-wepack/carctl/pkg/util/httputil"
 	"github.com/coding-wepack/carctl/pkg/util/ioutils"
 	"github.com/coding-wepack/carctl/pkg/util/sliceutil"
@@ -162,7 +163,7 @@ func migrateJfrogRepository(w io.Writer, jfrogUrl *url.URL, jfrogFileList []remo
 	const pbName = "Pushing:"
 	// adding a single bar, which will inherit container's width
 	bar := p.Add(
-		int64(len(jfrogFileList)),
+		int64(repository.Count),
 		mpb.NewBarFiller(mpb.BarStyle()),
 		mpb.PrependDecorators(
 			// display our name with one space on the right
@@ -257,7 +258,8 @@ func doMigrateJfrogArt(fileName, downloadUrl string) (useTime int64, err error) 
 		return useTime, errors.Wrapf(err, "failed to download from %s", downloadUrl)
 	}
 	defer ioutils.QuiteClose(getResp.Body)
-	err = writeZipFile(fileName, getResp.Body)
+	filePath := fmt.Sprintf(tarFile, fileName)
+	err = fileutil.WriteFile(filePath, getResp.Body)
 	if err != nil {
 		return useTime, err
 	}

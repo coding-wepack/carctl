@@ -1,9 +1,12 @@
 package fileutil
 
 import (
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/pkg/errors"
 )
 
 func IsFileInvisible(filename string) bool {
@@ -75,6 +78,18 @@ func RemoveContents(dir string) error {
 		if err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func WriteFile(filePath string, read io.ReadCloser) error {
+	file, err := os.Create(filePath)
+	if err != nil {
+		return errors.Wrapf(err, "failed to create file %s", filePath)
+	}
+	_, err = io.Copy(file, read)
+	if err != nil {
+		return errors.Wrapf(err, "failed to write content to file")
 	}
 	return nil
 }

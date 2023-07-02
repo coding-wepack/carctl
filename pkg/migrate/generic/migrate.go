@@ -18,6 +18,8 @@ import (
 	"github.com/coding-wepack/carctl/pkg/remote"
 	reportutil "github.com/coding-wepack/carctl/pkg/report"
 	"github.com/coding-wepack/carctl/pkg/settings"
+	"github.com/coding-wepack/carctl/pkg/util/cmdutil"
+	"github.com/coding-wepack/carctl/pkg/util/fileutil"
 	"github.com/coding-wepack/carctl/pkg/util/httputil"
 	"github.com/coding-wepack/carctl/pkg/util/ioutils"
 	"github.com/coding-wepack/carctl/pkg/util/sliceutil"
@@ -25,6 +27,8 @@ import (
 	"github.com/vbauerster/mpb/v7"
 	"github.com/vbauerster/mpb/v7/decor"
 )
+
+const LargeFileMigrate = "coding-generic -u='%s':'%s' --path='%s' --registry=\"%s\""
 
 var ErrFileConflict = errors.New("failed to put file: 409 conflict")
 
@@ -152,7 +156,7 @@ func migrateJfrogRepository(w io.Writer, jfrogUrl *url.URL, jfrogFileList []remo
 	const pbName = "Pushing:"
 	// adding a single bar, which will inherit container's width
 	bar := p.Add(
-		int64(len(jfrogFileList)),
+		int64(repository.Count),
 		mpb.NewBarFiller(mpb.BarStyle()),
 		mpb.PrependDecorators(
 			// display our name with one space on the right
@@ -183,8 +187,12 @@ func migrateJfrogRepository(w io.Writer, jfrogUrl *url.URL, jfrogFileList []remo
 		}()
 	}
 
+	migrateFunc := doMigrateJfrogArt
+	if settings.LargeFileMode {
+		migrateFunc = doMigrateLargeJfrogArt
+	}
 	if err = repository.ParallelForEach(func(fileName, filePath string, size int64) error {
-		useTime, err := doMigrateJfrogArt(filePath, username, password)
+		useTime, err := migrateFunc(fileName, filePath, username, password)
 		bar.Increment()
 		if err != nil && err == ErrFileConflict {
 			report.AddSkippedResultV2(fileName, filePath, "409 Conflict", size, useTime)
@@ -214,11 +222,11 @@ func migrateJfrogRepository(w io.Writer, jfrogUrl *url.URL, jfrogFileList []remo
 	return nil
 }
 
-func doMigrateJfrogArt(path, username, password string) (useTime int64, err error) {
+func doMigrateJfrogArt(_, path, username, password string) (useTime int64, err error) {
 	start := time.Now()
 	defer func() { useTime = time.Since(start).Milliseconds() }()
 	downloadUrl := getDownloadUrl(path)
-	pushUrl := getPushUrl(path)
+	pushUrl := getPushUrl(path, false)
 
 	// download
 	getResp, err := httputil.DefaultClient.GetWithAuth(downloadUrl, settings.SrcUsername, settings.SrcPassword)
@@ -245,14 +253,53 @@ func doMigrateJfrogArt(path, username, password string) (useTime int64, err erro
 	return useTime, nil
 }
 
+func doMigrateLargeJfrogArt(fileName, path, username, password string) (useTime int64, err error) {
+	start := time.Now()
+	defer func() { useTime = time.Since(start).Milliseconds() }()
+
+	// download
+	downloadUrl := getDownloadUrl(path)
+	getResp, err := httputil.DefaultClient.GetWithAuth(downloadUrl, settings.SrcUsername, settings.SrcPassword)
+	if err != nil {
+		return useTime, errors.Wrapf(err, "failed to download from %s", downloadUrl)
+	}
+	defer ioutils.QuiteClose(getResp.Body)
+	err = fileutil.WriteFile(fileName, getResp.Body)
+	if err != nil {
+		return useTime, err
+	}
+	defer cmdutil.Command("rm -rf " + fileName)
+
+	// push
+	pushUrl := getPushUrl(path, true)
+	parse, err := url.Parse(pushUrl)
+	if err != nil {
+		return useTime, err
+	}
+	cmd := fmt.Sprintf(LargeFileMigrate, username, password, fileName, parse.String())
+	result := ""
+	for i := 0; i < 3; i++ {
+		result, err = cmdutil.Command(cmd)
+		if err == nil {
+			break
+		}
+		log.Infof("failed to push artifact, wait 1 second and try again! %s: err: %s", result, err.Error())
+		time.Sleep(time.Second)
+	}
+	if err != nil {
+		return useTime, errors.Wrapf(err, "failed to publish artifact: %s", result)
+	}
+	return useTime, nil
+}
+
 func getDownloadUrl(filePath string) string {
 	subPath := strings.Trim(strings.TrimPrefix(filePath, settings.Src), "/")
 	return strings.TrimSuffix(settings.Src, "/") + "/" + subPath
 }
 
-func getPushUrl(filePath string) string {
+func getPushUrl(filePath string, isChunks bool) string {
 	subPath := strings.Trim(strings.TrimPrefix(filePath, settings.Src), "/")
-	return settings.GetDstHasSubSlash() + subPath
+	return settings.GetDstHasSubSlash() + "chunks/" + subPath
 }
 
 func isLocalRepository(src string) bool {

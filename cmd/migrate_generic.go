@@ -57,6 +57,7 @@ func newMigrateGenericCmd(cfg *action.Configuration, out io.Writer) *cobra.Comma
 	cmd.Flags().BoolVarP(&settings.Force, "force", "f", false, "whether push is forced. if exists does no push.")
 	cmd.Flags().StringVar(&settings.Prefix, "prefix", "", "e.g., --prefix=dir/. only name that match the prefix are migrated.")
 	cmd.Flags().BoolVar(&settings.DryRun, "dryRun", false, "check need migrate artifacts.")
+	cmd.Flags().BoolVar(&settings.LargeFileMode, "largeFileMode", false, "The large file migration mode relies on the npm operation coding-generic")
 
 	// TODO: --max-arts
 	// TODO: --generate-sha1
