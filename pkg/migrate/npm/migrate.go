@@ -1,6 +1,7 @@
 package npm
 
 import (
+	"bufio"
 	"encoding/base64"
 	"fmt"
 	"io"
@@ -36,6 +37,7 @@ const (
 	tarFile = "./npmCache/%s"
 	unTar   = "cd ./npmCache && rm -rf ./%s && mkdir ./%s && tar -xf %s -C %s"
 	publish = "cd ./npmCache/%s/package && cp ../../../.npmrc . && npm publish --registry=%s"
+	pkgJson = "./npmCache/%s/package/package.json"
 	npmrc   = `registry=%s
 always-auth=true
 //%s:username=%s
@@ -270,6 +272,11 @@ func doMigrateJfrogArt(fileName, downloadUrl string) (useTime int64, err error) 
 		return useTime, errors.Wrapf(err, "failed to unzip file %s: %s", fileName, result)
 	}
 
+	err = magicChangePrivate(fmt.Sprintf(pkgJson, path))
+	if err != nil {
+		log.Warn("file check package.json", logfields.Error(err))
+	}
+
 	// upload
 	for i := 0; i < 3; i++ {
 		cmd := fmt.Sprintf(publish, path, settings.GetDstHasSubSlash())
@@ -284,19 +291,6 @@ func doMigrateJfrogArt(fileName, downloadUrl string) (useTime int64, err error) 
 		return useTime, errors.Wrapf(err, "failed to publish artifact: %s", result)
 	}
 	return
-}
-
-func writeZipFile(fileName string, read io.ReadCloser) error {
-	filePath := fmt.Sprintf(tarFile, fileName)
-	file, err := os.Create(filePath)
-	if err != nil {
-		return errors.Wrapf(err, "failed to create file %s", filePath)
-	}
-	_, err = io.Copy(file, read)
-	if err != nil {
-		return errors.Wrapf(err, "failed to write content to file")
-	}
-	return nil
 }
 
 func removeData(path string) {
@@ -357,4 +351,36 @@ func isNeedMigrate(exists map[string]bool, filePath string) bool {
 	pkg := strings.Join(split[:len(split)-1], "-")
 	version := split[len(split)-1]
 	return !exists[fmt.Sprintf("%s:%s", pkg, version)]
+}
+
+func magicChangePrivate(pkgJsonFile string) error {
+	// open file
+	file, err := os.OpenFile(pkgJsonFile, os.O_RDWR, 0644)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+	// read line
+	scanner := bufio.NewScanner(file)
+	var lines []string
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	// "private": true update to "magic_private": true
+	for i, line := range lines {
+		if strings.Contains(line, "\"private\"") {
+			lines[i] = strings.ReplaceAll(line, "\"private\"", "\"magic_private\"")
+			break
+		}
+	}
+	// write to file
+	if _, err = file.Seek(0, 0); err != nil {
+		return err
+	}
+	writer := bufio.NewWriter(file)
+	for _, line := range lines {
+		fmt.Fprintln(writer, line)
+	}
+	writer.Flush()
+	return nil
 }
