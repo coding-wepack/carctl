@@ -279,10 +279,10 @@ func doMigrateJfrogArt(fileName, downloadUrl string) (useTime int64, err error) 
 		return useTime, errors.Wrapf(err, "failed to unzip file %s: %s : %s", fileName, result, errOutput)
 	}
 
-	err = pkgMagicChange(fmt.Sprintf(pkgJson, path))
-	if err != nil {
-		log.Warn("file check package.json", logfields.Error(err))
-	}
+	// err = pkgMagicChange(fmt.Sprintf(pkgJson, path))
+	// if err != nil {
+	// 	log.Warn("file check package.json", logfields.Error(err))
+	// }
 
 	// upload
 	for i := 0; i < 3; i++ {
