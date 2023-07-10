@@ -200,7 +200,7 @@ func migrateJfrogRepository(w io.Writer, jfrogUrl *url.URL, jfrogFileList []remo
 		} else if err != nil {
 			report.AddFailedResultV2(fileName, filePath, err.Error(), size, useTime)
 			if settings.FailFast {
-				err = errors.Wrapf(err, "failed to migrate %s", filePath)
+				return errors.Wrapf(err, "failed to migrate %s", filePath)
 			}
 		} else {
 			report.AddSucceededResultV2(fileName, filePath, "Succeeded", size, useTime)
@@ -277,13 +277,13 @@ func doMigrateLargeJfrogArt(fileName, path, username, password string) (useTime 
 		return useTime, err
 	}
 	cmd := fmt.Sprintf(LargeFileMigrate, username, password, fileName, parse.String())
-	result := ""
+	result, errOp := "", ""
 	for i := 0; i < 3; i++ {
-		result, err = cmdutil.Command(cmd)
+		result, errOp, err = cmdutil.Command(cmd)
 		if err == nil {
 			break
 		}
-		log.Infof("failed to push artifact, wait 1 second and try again! %s: err: %s", result, err.Error())
+		log.Infof("failed to push artifact, wait 1 second and try again! %s: err: %s:%s", result, err.Error(), errOp)
 		time.Sleep(time.Second)
 	}
 	if err != nil {
@@ -299,7 +299,10 @@ func getDownloadUrl(filePath string) string {
 
 func getPushUrl(filePath string, isChunks bool) string {
 	subPath := strings.Trim(strings.TrimPrefix(filePath, settings.Src), "/")
-	return settings.GetDstHasSubSlash() + "chunks/" + subPath
+	if isChunks {
+		return settings.GetDstHasSubSlash() + "chunks/" + subPath
+	}
+	return settings.GetDstHasSubSlash() + subPath
 }
 
 func isLocalRepository(src string) bool {

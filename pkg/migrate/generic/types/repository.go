@@ -40,13 +40,16 @@ type (
 
 func (r *Repository) Render(w io.Writer) {
 	data := make([][]string, len(r.Files))
+	var sum float64 = 0
 	for i, f := range r.Files {
-		data[i] = []string{f.FileName, f.FilePath}
+		size := float64(f.Size) / 1024 / 1024
+		data[i] = []string{f.FileName, f.FilePath, fmt.Sprintf("%f", size)}
+		sum += size
 	}
 
 	table := tablewriter.NewWriter(w)
-	table.SetHeader([]string{"Artifact", "SrcPath"})
-	table.SetFooter([]string{"Total Files", fmt.Sprintf("%d", r.Count)})
+	table.SetHeader([]string{"Artifact", "SrcPath", "Size(Mb)"})
+	table.SetFooter([]string{"Total", fmt.Sprintf("%d", r.Count), fmt.Sprintf("%f", sum)})
 	table.SetAutoMergeCells(true)
 	table.SetRowLine(true)
 	table.AppendBulk(data)

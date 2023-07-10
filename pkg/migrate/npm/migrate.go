@@ -1,12 +1,14 @@
 package npm
 
 import (
-	"bufio"
+	"bytes"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -31,6 +33,7 @@ import (
 )
 
 const (
+	expr    = "(.*)/-/.*\\-(\\d+\\.\\d+\\.\\d+.*).tgz"
 	initDir = "mkdir ./npmCache && echo '%s' > ./.npmrc"
 	clean   = "rm -rf ./npmCache && rm -rf ./.npmrc"
 	remove  = "rm -rf ./npmCache/%s"
@@ -74,6 +77,9 @@ func Migrate(cfg *action.Configuration, out io.Writer) error {
 		if err != nil {
 			return errors.Wrap(err, "failed to find dst repo exists artifacts")
 		}
+	}
+	if settings.Verbose {
+		log.Debug("exists artifacts", logfields.Any("exists", exists))
 	}
 
 	isLocalPath := isLocalRepository(settings.Src)
@@ -240,9 +246,9 @@ func createAuthFile(username, password string) error {
 	regUrl := getRegUrl(settings.Dst)
 	base64Pwd := base64.StdEncoding.EncodeToString([]byte(password))
 	authContent := fmt.Sprintf(npmrc, settings.GetDstHasSubSlash(), regUrl, username, regUrl, base64Pwd, regUrl, username)
-	result, err := cmdutil.Command(fmt.Sprintf(initDir, authContent))
+	result, errOutput, err := cmdutil.Command(fmt.Sprintf(initDir, authContent))
 	if err != nil {
-		err = errors.Wrapf(err, "failed to init migrate data: %s", result)
+		err = errors.Wrapf(err, "failed to init migrate data: %s, err:%s", result, errOutput)
 	}
 	return err
 }
@@ -254,6 +260,7 @@ func doMigrateJfrogArt(fileName, downloadUrl string) (useTime int64, err error) 
 	path := strings.TrimSuffix(fileName, ".tgz")
 	defer removeData(path)
 
+	var result, errOutput string
 	// download
 	getResp, err := httputil.DefaultClient.GetWithAuth(downloadUrl, settings.SrcUsername, settings.SrcPassword)
 	if err != nil {
@@ -267,12 +274,12 @@ func doMigrateJfrogArt(fileName, downloadUrl string) (useTime int64, err error) 
 	}
 
 	// unzip
-	result, err := cmdutil.Command(fmt.Sprintf(unTar, path, path, fileName, path))
+	result, errOutput, err = cmdutil.Command(fmt.Sprintf(unTar, path, path, fileName, path))
 	if err != nil {
-		return useTime, errors.Wrapf(err, "failed to unzip file %s: %s", fileName, result)
+		return useTime, errors.Wrapf(err, "failed to unzip file %s: %s : %s", fileName, result, errOutput)
 	}
 
-	err = magicChangePrivate(fmt.Sprintf(pkgJson, path))
+	err = pkgMagicChange(fmt.Sprintf(pkgJson, path))
 	if err != nil {
 		log.Warn("file check package.json", logfields.Error(err))
 	}
@@ -280,30 +287,29 @@ func doMigrateJfrogArt(fileName, downloadUrl string) (useTime int64, err error) 
 	// upload
 	for i := 0; i < 3; i++ {
 		cmd := fmt.Sprintf(publish, path, settings.GetDstHasSubSlash())
-		result, err = cmdutil.Command(cmd)
+		result, errOutput, err = cmdutil.Command(cmd)
 		if err == nil {
 			break
 		}
-		log.Infof("failed to publish artifact, wait 1 second and try again! %s: err: %s", result, err.Error())
 		time.Sleep(time.Second)
 	}
 	if err != nil {
-		return useTime, errors.Wrapf(err, "failed to publish artifact: %s", result)
+		return useTime, errors.Wrapf(err, "failed to publish artifact: %s:%s", result, errOutput)
 	}
 	return
 }
 
 func removeData(path string) {
-	result, err := cmdutil.Command(fmt.Sprintf("%s/%s*", remove, path))
+	result, errOutput, err := cmdutil.Command(fmt.Sprintf("%s/%s*", remove, path))
 	if err != nil {
-		log.Warnf("remove data failed: %s : %s", err.Error(), result)
+		log.Warnf("remove data failed, result: %s, err: %s:%s", result, err.Error(), errOutput)
 	}
 }
 
 func cleanEnvironment() {
-	result, err := cmdutil.Command(clean)
+	result, errOutput, err := cmdutil.Command(clean)
 	if err != nil {
-		log.Warnf("clean cache dir failed: %s : %s", err.Error(), result)
+		log.Warnf("clean cache dir failed, result: %s err: %s:%s", result, err.Error(), errOutput)
 	}
 }
 
@@ -342,45 +348,68 @@ func GetRepositoryFromJfrogFile(jfrogUrl *url.URL, jfrogFileList []remote.JfrogF
 }
 
 func isNeedMigrate(exists map[string]bool, filePath string) bool {
-	if !strings.Contains(filePath, "/-/") {
+	compile, err := regexp.Compile(expr)
+	if err != nil {
+		log.Warn("compile failed", logfields.Error(err))
 		return false
 	}
-	fullName := strings.Split(filePath, "/-/")[1]
-	fullName = strings.TrimSuffix(fullName, ".tgz")
-	split := strings.Split(fullName, "-")
-	pkg := strings.Join(split[:len(split)-1], "-")
-	version := split[len(split)-1]
+	if !compile.MatchString(filePath) {
+		return false
+	}
+	subMatch := compile.FindStringSubmatch(filePath)
+	pkg := subMatch[1]
+	version := subMatch[2]
 	return !exists[fmt.Sprintf("%s:%s", pkg, version)]
 }
 
-func magicChangePrivate(pkgJsonFile string) error {
+func pkgMagicChange(pkgJsonFile string) error {
 	// open file
 	file, err := os.OpenFile(pkgJsonFile, os.O_RDWR, 0644)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-	// read line
-	scanner := bufio.NewScanner(file)
-	var lines []string
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	// "private": true update to "magic_private": true
-	for i, line := range lines {
-		if strings.Contains(line, "\"private\"") {
-			lines[i] = strings.ReplaceAll(line, "\"private\"", "\"magic_private\"")
-			break
-		}
-	}
-	// write to file
-	if _, err = file.Seek(0, 0); err != nil {
+	defer func() { _ = file.Close() }()
+
+	// read file
+	data := make(map[string]interface{})
+	decoder := json.NewDecoder(file)
+	err = decoder.Decode(&data)
+	if err != nil {
 		return err
 	}
-	writer := bufio.NewWriter(file)
-	for _, line := range lines {
-		fmt.Fprintln(writer, line)
+
+	// update file
+	delete(data, "publishConfig")
+	delete(data, "scripts")
+	private, ok := data["private"].(bool)
+	if !ok || !private {
+		return nil
 	}
-	writer.Flush()
+	data["private"] = false
+
+	// write file
+	err = os.Remove(pkgJsonFile)
+	if err != nil {
+		return err
+	}
+	file, err = os.Create(pkgJsonFile)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = file.Close() }()
+
+	bf := bytes.NewBuffer([]byte{})
+	jsonEncoder := json.NewEncoder(bf)
+	jsonEncoder.SetEscapeHTML(false)
+	jsonEncoder.SetIndent("", "  ")
+	err = jsonEncoder.Encode(data)
+	if err != nil {
+		return err
+	}
+
+	_, err = file.Write(bf.Bytes())
+	if err != nil {
+		return err
+	}
 	return nil
 }

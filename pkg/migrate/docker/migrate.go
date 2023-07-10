@@ -220,13 +220,9 @@ func doMigrateJfrogArt(srcTag, dstTag string, isTlsSrc, isTlsDst bool, auth *con
 	if settings.Verbose {
 		log.Debug(cmd)
 	}
-	result, err := cmdutil.Command(cmd)
+	output, errOutput, err := cmdutil.Command(cmd)
 	if err != nil {
-		return errors.Wrapf(err, "failed to migrate image from %s to %s, result: %s", srcTag, dstTag, result)
-	}
-
-	if settings.Verbose {
-		log.Debug(result)
+		return errors.Wrapf(err, "failed to migrate image from %s to %s, result: %s, err: %s", srcTag, dstTag, output, errOutput)
 	}
 	return nil
 }
