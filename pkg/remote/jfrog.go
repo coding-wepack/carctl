@@ -20,7 +20,7 @@ type JfrogFile struct {
 	Path       string    `json:"path"`
 	Name       string    `json:"name"`
 	Type       string    `json:"type"`
-	Size       int       `json:"size"`
+	Size       int64     `json:"size"`
 	Created    time.Time `json:"created"`
 	CreatedBy  string    `json:"created_by"`
 	Modified   string    `json:"modified"`
@@ -35,15 +35,17 @@ func (f *JfrogFile) GetFilePath() string {
 	return fmt.Sprintf("%s/%s", f.Path, f.Name)
 }
 
-func (f *JfrogFile) GetDockerInfo() (srcPath, pkg, version string, err error) {
+func (f *JfrogFile) GetDockerInfo() (srcPath, srcName, pkg, version string, err error) {
 	split := strings.Split(strings.Trim(f.Path, "/"), "/")
 	if len(split) < 2 {
 		err = errors.Errorf("the srcPath dir level cannot be less than 2, srcPath: %s", f.Path)
 		return
 	}
 	pkg = strings.Join(split[:len(split)-1], "_")
+	// pkg = split[len(split)-2]
+	srcName = strings.Join(split[:len(split)-1], "/")
 	version = split[len(split)-1]
-	srcPath = fmt.Sprintf("%s:%s", strings.Join(split[:len(split)-1], "/"), version)
+	srcPath = fmt.Sprintf("%s:%s", srcName, version)
 	return
 }
 

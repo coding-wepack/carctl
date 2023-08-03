@@ -18,6 +18,7 @@ import (
 	reportutil "github.com/coding-wepack/carctl/pkg/report"
 	"github.com/coding-wepack/carctl/pkg/settings"
 	"github.com/coding-wepack/carctl/pkg/util/cmdutil"
+	"github.com/coding-wepack/carctl/pkg/util/sliceutil"
 	"github.com/pkg/errors"
 	"github.com/vbauerster/mpb/v7"
 	"github.com/vbauerster/mpb/v7/decor"
@@ -51,7 +52,7 @@ func Migrate(cfg *action.Configuration, out io.Writer) error {
 	// exists artifacts
 	var exists map[string]bool
 	if !settings.Force {
-		exists, err = api.FindDstRepoArtifactsName(&authConfig, settings.GetDstWithoutSlash(), constants.TypeDocker)
+		exists, err = api.FindDstExistsArtifacts(&authConfig, settings.GetDstWithoutSlash(), constants.TypeDocker)
 		if err != nil {
 			return errors.Wrap(err, "failed to find dst repo exists artifacts")
 		}
@@ -97,15 +98,29 @@ func MigrateFromJfrog(cfg *config.AuthConfig, out io.Writer, jfrogUrl *url.URL, 
 		return errors.Wrap(err, "failed to get file list")
 	}
 
-	if err = migrateJfrogRepository(out, jfrogUrl, filesInfo.Res, cfg, exists); err != nil {
+	if len(settings.Prefix) != 0 {
+		// 过滤匹配 settings.Prefix 的制品
+		totalCount := len(filesInfo.Res)
+		var matchFiles []remote.JfrogFile
+		for _, f := range filesInfo.Res {
+			if strings.HasPrefix(f.GetFilePath(), settings.Prefix) {
+				matchFiles = append(matchFiles, f)
+			}
+		}
+		filesInfo.Res = matchFiles
+		log.Infof("remote repository file count is:%d, match prefix count is:%d", totalCount, len(matchFiles))
+	}
+
+	if err = migrateJfrogRepository(cfg, out, jfrogUrl, filesInfo.Res, cfg, exists); err != nil {
 		return err
 	}
 	return nil
 }
 
-func migrateJfrogRepository(w io.Writer, jfrogUrl *url.URL, jfrogFileList []remote.JfrogFile, auth *config.AuthConfig, exists map[string]bool) error {
+func migrateJfrogRepository(cfg *config.AuthConfig, w io.Writer, jfrogUrl *url.URL, jfrogFileList []remote.JfrogFile, auth *config.AuthConfig, exists map[string]bool) error {
 	log.Info("Scanning jfrog repository ...")
 
+	sliceutil.QuickSortReverse(jfrogFileList, func(f remote.JfrogFile) int64 { return f.Size })
 	repository, err := GetRepositoryFromJfrogFile(jfrogUrl, jfrogFileList, exists)
 	if err != nil {
 		return err
@@ -118,6 +133,14 @@ func migrateJfrogRepository(w io.Writer, jfrogUrl *url.URL, jfrogFileList []remo
 	if settings.Verbose {
 		log.Info("Repository Info:")
 		repository.Render(w)
+	}
+	duplication := repository.CheckDuplication(w)
+	if !settings.Force && duplication {
+		log.Warn("Duplicate artifacts exist. Please check the artifacts")
+		return nil
+	}
+	if settings.DryRun {
+		return nil
 	}
 
 	// Progress Bar
@@ -157,21 +180,24 @@ func migrateJfrogRepository(w io.Writer, jfrogUrl *url.URL, jfrogFileList []remo
 		}()
 	}
 
-	if err = repository.ForEach(func(name, srcTag, dstTag string, isTlsSrc, isTlsDst bool) error {
+	if err = repository.ParallelForEach(func(image *types.Image, path, dst string, isTlsSrc, isTlsDst bool) error {
 		defer bar.Increment()
+		srcTag := fmt.Sprintf("%s/%s", path, image.SrcPath)
+		dstTag := fmt.Sprintf("%s/%s", dst, image.Tag)
 		if err1 := doMigrateJfrogArt(srcTag, dstTag, isTlsSrc, isTlsDst, auth); err1 != nil {
 			if err1 == ErrFileConflict {
-				report.AddSkippedResult(name, srcTag, "409 Conflict")
+				report.AddSkippedResult(image.SrcPath, srcTag, "409 Conflict")
 				return types.ErrForEachContinue
 			}
 
-			report.AddFailedResult(name, srcTag, err1.Error())
+			report.AddFailedResult(image.SrcPath, srcTag, err1.Error())
 
 			if settings.FailFast {
 				return errors.Wrapf(err1, "failed to migrate %s", srcTag)
 			}
 		} else {
-			report.AddSucceededResult(name, srcTag, "Succeeded")
+			report.AddSucceededResult(image.SrcPath, srcTag, "Succeeded")
+			addProperty(cfg, image)
 		}
 
 		return nil
@@ -192,18 +218,11 @@ func migrateJfrogRepository(w io.Writer, jfrogUrl *url.URL, jfrogFileList []remo
 }
 
 func doMigrateJfrogArt(srcTag, dstTag string, isTlsSrc, isTlsDst bool, auth *config.AuthConfig) error {
-	cmd := fmt.Sprintf("skopeo copy --src-creds=%s:%s --dest-creds=%s:%s --src-tls-verify=%t --dest-tls-verify=%t docker://%s docker://%s",
+	cmd := fmt.Sprintf("skopeo copy --src-creds='%s:%s' --dest-creds='%s:%s' --src-tls-verify=%t --dest-tls-verify=%t docker://%s docker://%s",
 		settings.SrcUsername, settings.SrcPassword, auth.Username, auth.Password, isTlsSrc, isTlsDst, srcTag, dstTag)
-	if settings.Verbose {
-		log.Debug(cmd)
-	}
-	result, err := cmdutil.Command(cmd)
+	output, errOutput, err := cmdutil.Command(cmd)
 	if err != nil {
-		return errors.Wrapf(err, "failed to migrate image from %s to %s, result: %s", srcTag, dstTag, result)
-	}
-
-	if settings.Verbose {
-		log.Debug(result)
+		return errors.Wrapf(err, "failed to migrate image from %s to %s, result: %s, err: %s", srcTag, dstTag, output, errOutput)
 	}
 	return nil
 }
@@ -217,16 +236,18 @@ func GetRepositoryFromJfrogFile(jfrogUrl *url.URL, jfrogFileList []remote.JfrogF
 		if !strings.EqualFold(f.Name, "manifest.json") {
 			continue
 		}
-		srcPath, pkg, version, err := f.GetDockerInfo()
+		srcPath, srcName, pkg, version, err := f.GetDockerInfo()
 		if err != nil {
 			log.Warnf("failed to gat docker tag from file srcPath: %s", f.Path)
 			continue
 		}
 		imageTag := &types.Image{
-			SrcPath: strings.Trim(srcPath, "/"),
-			PkgName: strings.Trim(pkg, "/"),
-			Version: strings.Trim(version, "/"),
+			SrcPath:    strings.Trim(srcPath, "/"),
+			PkgName:    strings.Trim(pkg, "/"),
+			Version:    strings.Trim(version, "/"),
+			SrcPkgName: strings.Trim(srcName, "/"),
 		}
+		imageTag.Tag = fmt.Sprintf("%s:%s", imageTag.PkgName, imageTag.Version)
 		fileCount++
 		if settings.Force || isNeedMigrate(exists, imageTag) {
 			repository.Images = append(repository.Images, imageTag)
@@ -248,5 +269,17 @@ func isNeedMigrate(exists map[string]bool, imageTag *types.Image) bool {
 	if settings.Force {
 		return true
 	}
-	return !exists[imageTag.SrcPath]
+	return !exists[imageTag.Tag]
+}
+
+func addProperty(cfg *config.AuthConfig, image *types.Image) {
+	time.Sleep(3 * time.Second)
+	err := api.AddProperties(cfg, settings.GetDstWithoutSlash(), constants.TypeDocker, image.PkgName, image.Version,
+		"srcName", image.SrcPkgName)
+	info := fmt.Sprintf("add property srcName=%s to %s:%s ", image.SrcPkgName, image.PkgName, image.Version)
+	if err != nil {
+		log.Debug(info+"failed", logfields.Error(err))
+	} else if settings.Verbose {
+		log.Debug(info + "success!")
+	}
 }

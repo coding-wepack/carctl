@@ -4,7 +4,16 @@ import (
 	"fmt"
 	"io"
 	"regexp"
+	"sort"
+	"strings"
+	"sync"
+	"sync/atomic"
 
+	"github.com/coding-wepack/carctl/pkg/log"
+	"github.com/coding-wepack/carctl/pkg/log/logfields"
+	"github.com/coding-wepack/carctl/pkg/settings"
+	"github.com/coding-wepack/carctl/pkg/util/logutil"
+	"github.com/coding-wepack/carctl/pkg/util/queueutil"
 	"github.com/pkg/errors"
 
 	"github.com/olekukonko/tablewriter"
@@ -28,7 +37,7 @@ type (
 		Path string `json:"path"`
 
 		// FileCount is count of files of the repository
-		FileCount int `json:"-"`
+		FileCount int `json:"fileCount"`
 
 		Groups []*Group `json:"groups,omitempty"`
 	}
@@ -60,6 +69,17 @@ type (
 
 		// DownloadUrl: fullUrl From Nexus Or Coding, e.g., http://localhost:8081/repository/maven-public/net/sf/json-lib/json-lib/2.2.2/json-lib-2.2.2-jdk15.jar
 		DownloadUrl string `json:"downloadUrl,omitempty"`
+
+		Size int64 `json:"size,omitempty"`
+	}
+
+	Maven struct {
+		group       string
+		artifact    string
+		version     string
+		path        string
+		downloadUrl string
+		size        int64
 	}
 )
 
@@ -135,12 +155,12 @@ func (r *Repository) GetFileCount() int {
 	return r.FileCount
 }
 
-func (r *Repository) ForEach(fn func(group, artifact, version, path, downloadUrl string) error) error {
+func (r *Repository) ForEach(fn func(group, artifact, version, path, downloadUrl string, size int64) error) error {
 	for _, g := range r.Groups {
 		for _, a := range g.Artifacts {
 			for _, v := range a.Versions {
 				for _, f := range v.Files {
-					if err := fn(g.Name, a.Name, v.Name, f.Path, f.DownloadUrl); err != nil {
+					if err := fn(g.Name, a.Name, v.Name, f.Path, f.DownloadUrl, f.Size); err != nil {
 						if err == ErrForEachContinue {
 							continue
 						}
@@ -153,11 +173,74 @@ func (r *Repository) ForEach(fn func(group, artifact, version, path, downloadUrl
 	return nil
 }
 
-func (r *Repository) AddVersionFile(groupName, artifactName, versionName, filename, filePath string) {
-	r.AddVersionFileBase(groupName, artifactName, versionName, filename, filePath, "")
+func (r *Repository) ParallelForEach(fn func(group, artifact, version, path, downloadUrl string, size int64) error) error {
+	if settings.Concurrency <= 1 {
+		return r.ForEach(fn)
+	}
+	mavens := make([]*Maven, 0)
+	for _, g := range r.Groups {
+		for _, a := range g.Artifacts {
+			for _, v := range a.Versions {
+				for _, f := range v.Files {
+					mavens = append(mavens, &Maven{
+						group:       g.Name,
+						artifact:    a.Name,
+						version:     v.Name,
+						path:        f.Path,
+						downloadUrl: f.DownloadUrl,
+						size:        f.Size,
+					})
+				}
+			}
+		}
+	}
+
+	dataChan := make(chan *Maven)
+	go queueutil.Producer(mavens, dataChan)
+
+	if settings.Verbose {
+		log.Debug("parallel foreach do migrate maven artifacts",
+			logfields.Int("file size", len(mavens)),
+			logfields.Int("concurrency", settings.Concurrency))
+	}
+	var wg sync.WaitGroup
+	var goroutineCount int32 = 0
+	errChan := make(chan error)
+	execJobNum := make([]int32, settings.Concurrency)
+	for i := 0; i < settings.Concurrency; i++ {
+		wg.Add(1)
+		execJobNum[i] = 0
+		go queueutil.Consumer(dataChan, errChan, &wg, &execJobNum[i], func(item *Maven) error {
+			atomic.AddInt32(&goroutineCount, 1)
+			err := fn(item.group, item.artifact, item.version, item.path, item.downloadUrl, item.size)
+			atomic.AddInt32(&goroutineCount, -1)
+			if err != nil || err == ErrForEachContinue {
+				return nil
+			}
+			return err
+		})
+	}
+	go logutil.WriteGoroutineFile(&goroutineCount, execJobNum)
+
+	go func() {
+		wg.Wait()
+		// 关闭通道，表示所有的 goroutine 已经执行完毕
+		close(errChan)
+	}()
+
+	for err := range errChan {
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func (r *Repository) AddVersionFileBase(groupName, artifactName, versionName, filename, filePath, downloadUrl string) {
+func (r *Repository) AddVersionFile(groupName, artifactName, versionName, filename, filePath string) {
+	r.AddVersionFileBase(groupName, artifactName, versionName, filename, filePath, "", 0)
+}
+
+func (r *Repository) AddVersionFileBase(groupName, artifactName, versionName, filename, filePath, downloadUrl string, size int64) {
 	if !r.HasGroup(groupName) {
 		r.AddGroupName(groupName)
 	}
@@ -175,7 +258,7 @@ func (r *Repository) AddVersionFileBase(groupName, artifactName, versionName, fi
 						if v.Name == versionName {
 
 							if !v.HasFile(filename) {
-								v.AddFile(filename, filePath, downloadUrl)
+								v.AddFile(filename, filePath, downloadUrl, size)
 							}
 
 						}
@@ -221,6 +304,40 @@ func (r *Repository) VersionCount() int {
 	return count
 }
 
+func (r *Repository) CleanInvalidMetadata(fileCount int) int {
+	for _, g := range r.Groups {
+		var invalidIndex []int
+		for i, a := range g.Artifacts {
+			// 仅有一个 metadata 文件，则需要过滤掉
+			if len(a.Versions) == 1 && strings.EqualFold(a.Versions[0].Name, "Metadata") {
+				invalidIndex = append(invalidIndex, i)
+				fileCount--
+			}
+		}
+		g.Artifacts = deleteIndexes(g.Artifacts, invalidIndex)
+	}
+	var invalidIndex []int
+	for i, g := range r.Groups {
+		if len(g.Artifacts) == 0 {
+			invalidIndex = append(invalidIndex, i)
+		}
+	}
+	r.Groups = deleteIndexes(r.Groups, invalidIndex)
+	return fileCount
+}
+
+func deleteIndexes[T any](s []T, indexes []int) []T {
+	if len(indexes) == 0 {
+		return s
+	}
+	// 降序排列索引以确保正确删除
+	sort.Sort(sort.Reverse(sort.IntSlice(indexes)))
+	for _, index := range indexes {
+		s = append(s[:index], s[index+1:]...)
+	}
+	return s
+}
+
 func (g *Group) HasArtifact(artifactName string) bool {
 	for _, art := range g.Artifacts {
 		if art.Name == artifactName {
@@ -256,8 +373,8 @@ func (v *Version) HasFile(filename string) bool {
 	return false
 }
 
-func (v *Version) AddFile(filename, filePath, downloadUrl string) {
-	v.Files = append(v.Files, &VersionFile{Name: filename, Path: filePath, DownloadUrl: downloadUrl})
+func (v *Version) AddFile(filename, filePath, downloadUrl string, size int64) {
+	v.Files = append(v.Files, &VersionFile{Name: filename, Path: filePath, DownloadUrl: downloadUrl, Size: size})
 }
 
 func (f *FlattenRepository) Render(w io.Writer) {

@@ -56,6 +56,14 @@ var (
 
 	// Prefix use to filter generic artifacts.
 	Prefix string
+
+	// DryRun is print need migrate artifacts
+	DryRun bool
+
+	LargeFileMode bool
+
+	//
+	DropInvalidKey []string
 )
 
 func GetSrcWithoutSlash() string {

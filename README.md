@@ -159,5 +159,20 @@ $ carctl migrate maven --src=/home/juan/.m2/swagger-repository --dst=http://codi
 Migrate your nexus maven repository to a remote maven repository:
 
 ```shell
-$ carctl migrate maven --src-type=nexus --src=http://localhost:8081/repository/maven-test/ --src-username=admin --src-password=admin123 --dst=http://codingcorp-maven.pkg.coding.com/repository/registry/overridable-maven-migrate/ 
+$ carctl migrate maven --src-type=jfrog --src=http://localhost:8081/repository/maven-test/ --src-username=admin --src-password=admin123 --dst=http://codingcorp-maven.pkg.coding.com/repository/registry/overridable-maven-migrate/ 
+```
+
+Migrated artifacts are skipped by default, and you can use --force or -f to force overwriting:
+```shell
+$ carctl migrate maven -f --src-type=jfrog --src=http://localhost:8081/repository/maven-test/ --src-username=admin --src-password=admin123 --dst=http://codingcorp-maven.pkg.coding.com/repository/registry/overridable-maven-migrate/ 
+```
+
+The current version already supports parallel migrate, and you can specify the amount of parallelism using --concurrency or -c 
+```shell
+$ carctl migrate maven -c 4 --src-type=jfrog --src=http://localhost:8081/repository/maven-test/ --src-username=admin --src-password=admin123 --dst=http://codingcorp-maven.pkg.coding.com/repository/registry/overridable-maven-migrate/ 
+```
+
+Docker and generic artifacts support prefix filtering, using --prefix to specify prefixes
+```shell
+$ carctl migrate generic --prefix dir/ --src-type=jfrog --src=http://localhost:8081/repository/generic-test/ --src-username=admin --src-password=admin123 --dst=http://codingcorp-maven.pkg.coding.com/repository/registry/overridable-maven-migrate/ 
 ```
