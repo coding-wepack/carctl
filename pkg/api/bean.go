@@ -73,3 +73,25 @@ type RepoFile struct {
 	VersionName  string
 	Hash         string
 }
+
+type CreateArtPropertiesReq struct {
+	Action         string
+	ProjectName    string
+	Repository     string
+	Package        string
+	PackageVersion string
+	PropertySet    []*Property
+}
+
+type Property struct {
+	Name  string
+	Value string
+}
+
+type CreateArtPropertiesResp struct {
+	Response *CreateArtPropertiesResponse
+}
+type CreateArtPropertiesResponse struct {
+	RequestId string
+	Error     *Error
+}

@@ -17,19 +17,24 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	TeamArtifacts      = "DescribeTeamArtifacts"
+	TeamArtifactFiles  = "DescribeArtifactRepositoryFileList"
+	CreateArtifactProp = "CreateArtifactProperties"
+)
+
+// FindDstExistsArtifacts 查询目标仓库已存在的制品
 func FindDstExistsArtifacts(cfg *config.AuthConfig, dst, artifactType string) (result map[string]bool, err error) {
 	// 解析目标 URL，获取域名以及项目名、仓库名
-	scheme, host, project, repo, err := parseDst(dst, artifactType)
+	openApiUrl, project, repo, err := parseDst(dst, artifactType)
 	if err != nil {
 		return
 	}
-	repo = strings.ToLower(repo)
 	// 拼接 open api 域名，构建请求体
-	openApiUrl := fmt.Sprintf("%s://%s/open-api", scheme, host)
 	pageNumber, pageSize := 1, 1000
 	// 构建 open api 请求，查询仓库下的制品版本信息
 	req := &DescribeTeamArtifactsReq{
-		Action:   "DescribeTeamArtifacts",
+		Action:   TeamArtifacts,
 		PageSize: pageSize,
 		Rule: &DescribeTeamArtifactsRule{
 			ProjectName: []string{project},
@@ -72,17 +77,16 @@ func FindDstExistsArtifacts(cfg *config.AuthConfig, dst, artifactType string) (r
 // FindDstExistsFiles 查询目标仓库已存在的制品文件
 func FindDstExistsFiles(cfg *config.AuthConfig, dst, artifactType string) (data map[string]bool, err error) {
 	// 解析目标 URL，获取域名以及项目名、仓库名
-	scheme, host, project, repo, err := parseDst(dst, artifactType)
+	openApiUrl, project, repo, err := parseDst(dst, artifactType)
 	if err != nil {
 		return
 	}
 
 	// 拼接 open api 域名，构建请求体
-	openApiUrl := fmt.Sprintf("%s://%s/open-api", scheme, host)
 	pageSize := 1000
 	// 构建 open api 请求，查询仓库下的制品版本信息
 	req := &DescribeRepoFileListReq{
-		Action:     "DescribeArtifactRepositoryFileList",
+		Action:     TeamArtifactFiles,
 		PageSize:   pageSize,
 		Project:    project,
 		Repository: repo,
@@ -126,6 +130,43 @@ func FindDstExistsFiles(cfg *config.AuthConfig, dst, artifactType string) (data 
 	return data, nil
 }
 
+// AddProperties 用于给制品增加标签
+func AddProperties(
+	cfg *config.AuthConfig, dst, artifactType, pkg, version, propName, propValue string,
+) (err error) {
+	// 解析目标 URL，获取域名以及项目名、仓库名
+	openApiUrl, project, repo, err := parseDst(dst, artifactType)
+	if err != nil {
+		return
+	}
+
+	// 构建 open api 请求，查询仓库下的制品版本信息
+	req := &CreateArtPropertiesReq{
+		Action:         CreateArtifactProp,
+		ProjectName:    project,
+		Repository:     repo,
+		Package:        pkg,
+		PackageVersion: version,
+		PropertySet:    []*Property{{Name: propName, Value: propValue}},
+	}
+	if settings.Verbose {
+		log.Debugf("add property, url: %s, username: %s, password: %s, project: %s, repository: %s, "+
+			"pkg: %s, version: %s, propName: %s, propValue: %s", openApiUrl, cfg.Username, cfg.Password,
+			project, repo, pkg, version, propName, propValue)
+	}
+
+	resp := &CreateArtPropertiesResp{}
+	err = execute(cfg, openApiUrl, req, resp)
+	if err != nil {
+		return err
+	}
+	respRsl := resp.Response
+	if respRsl.Error != nil {
+		err = errors.Errorf("failed to add property: %s", respRsl.Error.Code)
+	}
+	return
+}
+
 func execute[T any, R any](cfg *config.AuthConfig, url string, req T, resp R) (err error) {
 	marshal, err := json.Marshal(req)
 	if err != nil {
@@ -154,14 +195,12 @@ func execute[T any, R any](cfg *config.AuthConfig, url string, req T, resp R) (e
 	return
 }
 
-func parseDst(dst, artifactType string) (scheme, host, project, repo string, err error) {
+func parseDst(dst, artifactType string) (openApiUrl, project, repo string, err error) {
 	dstUrl, err := url.Parse(dst)
 	if err != nil {
 		err = errors.Wrapf(err, "failed to parse dst url %s", settings.GetDstWithoutSlash())
 		return
 	}
-	scheme = dstUrl.Scheme
-	host = replaceHost(dstUrl.Host, artifactType)
 
 	split := strings.Split(strings.Trim(dstUrl.Path, "/"), "/")
 	if strings.EqualFold(constants.TypeMaven, artifactType) {
@@ -174,7 +213,10 @@ func parseDst(dst, artifactType string) (scheme, host, project, repo string, err
 		err = errors.New("dst url path format must match /{project}/{repository}")
 		return
 	}
-	return dstUrl.Scheme, replaceHost(dstUrl.Host, artifactType), split[0], split[1], nil
+	// coding open api url
+	scheme := dstUrl.Scheme
+	host := replaceHost(dstUrl.Host, artifactType)
+	return fmt.Sprintf("%s://%s/open-api", scheme, host), split[0], strings.ToLower(split[1]), nil
 }
 
 func replaceHost(regHost, artifactType string) (host string) {

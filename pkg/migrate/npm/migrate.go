@@ -279,10 +279,10 @@ func doMigrateJfrogArt(fileName, downloadUrl string) (useTime int64, err error) 
 		return useTime, errors.Wrapf(err, "failed to unzip file %s: %s : %s", fileName, result, errOutput)
 	}
 
-	// err = pkgMagicChange(fmt.Sprintf(pkgJson, path))
-	// if err != nil {
-	// 	log.Warn("file check package.json", logfields.Error(err))
-	// }
+	err = pkgMagicChange(fmt.Sprintf(pkgJson, path))
+	if err != nil {
+		log.Warn("file check package.json", logfields.Error(err))
+	}
 
 	// upload
 	for i := 0; i < 3; i++ {
@@ -363,6 +363,9 @@ func isNeedMigrate(exists map[string]bool, filePath string) bool {
 }
 
 func pkgMagicChange(pkgJsonFile string) error {
+	if len(settings.DropInvalidKey) == 0 {
+		return nil
+	}
 	// open file
 	file, err := os.OpenFile(pkgJsonFile, os.O_RDWR, 0644)
 	if err != nil {
@@ -379,13 +382,17 @@ func pkgMagicChange(pkgJsonFile string) error {
 	}
 
 	// update file
-	delete(data, "publishConfig")
-	delete(data, "scripts")
-	private, ok := data["private"].(bool)
-	if !ok || !private {
+	has := false
+	for _, key := range settings.DropInvalidKey {
+		_, ok := data[key]
+		has = has && ok
+	}
+	if !has {
 		return nil
 	}
-	data["private"] = false
+	for _, key := range settings.DropInvalidKey {
+		delete(data, key)
+	}
 
 	// write file
 	err = os.Remove(pkgJsonFile)

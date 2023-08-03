@@ -56,6 +56,7 @@ func newMigrateNpmCmd(cfg *action.Configuration, out io.Writer) *cobra.Command {
 	cmd.Flags().IntVar(&settings.MaxFiles, "max-files", -1, "Maximum number of files to be pushed. Negative number means unlimited.")
 	cmd.Flags().BoolVarP(&settings.Force, "force", "f", false, "whether push is forced. if exists does no push.")
 	cmd.Flags().BoolVar(&settings.DryRun, "dryRun", false, "check need migrate artifacts.")
+	cmd.Flags().StringArrayVar(&settings.DropInvalidKey, "dropInvalidKey", []string{}, "e.g., --dropInvalidKey private, used to delete property that cause migration failure in the package.json npm package, such as private: true")
 
 	// TODO: --max-arts
 	// TODO: --generate-sha1

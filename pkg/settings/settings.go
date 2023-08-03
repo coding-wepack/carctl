@@ -61,6 +61,9 @@ var (
 	DryRun bool
 
 	LargeFileMode bool
+
+	//
+	DropInvalidKey []string
 )
 
 func GetSrcWithoutSlash() string {

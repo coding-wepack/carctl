@@ -36,10 +36,11 @@ type (
 	}
 
 	Image struct {
-		SrcPath string `json:"srcPath,omitempty"`
-		PkgName string `json:"pkgName,omitempty"`
-		Version string `json:"version,omitempty"`
-		Tag     string `json:"tag,omitempty"`
+		SrcPath    string `json:"srcPath,omitempty"`
+		PkgName    string `json:"pkgName,omitempty"`
+		Version    string `json:"version,omitempty"`
+		Tag        string `json:"tag,omitempty"`
+		SrcPkgName string `json:"SrcPkgName,omitempty"`
 	}
 )
 
@@ -91,13 +92,11 @@ func (r *Repository) CheckDuplication(w io.Writer) bool {
 	return true
 }
 
-func (r *Repository) ForEach(fn func(name, srcTag, dstTag string, isTlsSrc, isTlsDst bool) error) error {
-	isTlsDst, dst := parseDstUrl(settings.GetDstWithoutSlash())
-	path := strings.Trim(r.Path, "/")
+func (r *Repository) ForEach(fn func(image *Image, srcRepo, dstRepo string, isTlsSrc, isTlsDst bool) error) error {
+	isTlsDst, dstRepo := parseDstUrl(settings.GetDstWithoutSlash())
+	srcRepo := strings.Trim(r.Path, "/")
 	for _, image := range r.Images {
-		srcTag := fmt.Sprintf("%s/%s", path, image.SrcPath)
-		dstTag := fmt.Sprintf("%s/%s", dst, image.Tag)
-		if err := fn(image.SrcPath, srcTag, dstTag, r.IsTls, isTlsDst); err != nil {
+		if err := fn(image, srcRepo, dstRepo, r.IsTls, isTlsDst); err != nil {
 			if err == ErrForEachContinue {
 				continue
 			}
@@ -107,12 +106,12 @@ func (r *Repository) ForEach(fn func(name, srcTag, dstTag string, isTlsSrc, isTl
 	return nil
 }
 
-func (r *Repository) ParallelForEach(fn func(name, srcTag, dstTag string, isTlsSrc, isTlsDst bool) error) error {
+func (r *Repository) ParallelForEach(fn func(image *Image, srcRepo, dstRepo string, isTlsSrc, isTlsDst bool) error) error {
 	if settings.Concurrency <= 1 {
 		return r.ForEach(fn)
 	}
-	isTlsDst, dst := parseDstUrl(settings.GetDstWithoutSlash())
-	path := strings.Trim(r.Path, "/")
+	isTlsDst, dstRepo := parseDstUrl(settings.GetDstWithoutSlash())
+	srcRepo := strings.Trim(r.Path, "/")
 
 	dataChan := make(chan *Image)
 	go queueutil.Producer(r.Images, dataChan)
@@ -130,10 +129,8 @@ func (r *Repository) ParallelForEach(fn func(name, srcTag, dstTag string, isTlsS
 		wg.Add(1)
 		execJobNum[i] = 0
 		go queueutil.Consumer(dataChan, errChan, &wg, &execJobNum[i], func(image *Image) error {
-			srcTag := fmt.Sprintf("%s/%s", path, image.SrcPath)
-			dstTag := fmt.Sprintf("%s/%s", dst, image.Tag)
 			atomic.AddInt32(&goroutineCount, 1)
-			err := fn(image.SrcPath, srcTag, dstTag, r.IsTls, isTlsDst)
+			err := fn(image, srcRepo, dstRepo, r.IsTls, isTlsDst)
 			atomic.AddInt32(&goroutineCount, -1)
 			if err != nil && err == ErrForEachContinue {
 				return nil
@@ -156,6 +153,12 @@ func (r *Repository) ParallelForEach(fn func(name, srcTag, dstTag string, isTlsS
 		}
 	}
 	return nil
+}
+
+func (r *Repository) Tag(fn func(image *Image)) {
+	for _, image := range r.Images {
+		fn(image)
+	}
 }
 
 func parseDstUrl(dstUrl string) (isTls bool, registryUrl string) {
